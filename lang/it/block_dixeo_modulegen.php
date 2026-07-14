@@ -90,7 +90,7 @@ $string['privacy:metadata:external:instructions'] = 'Istruzioni di generazione o
 $string['privacy:metadata:external:jobid'] = 'Identificatori di job remoti Dixeo usati per tracciare l\'elaborazione.';
 $string['privacy:metadata:external:modulename'] = 'Il tipo di modulo attività generato o caricato.';
 $string['privacy:metadata:externalpurpose'] = 'Istruzioni, contenuto o nomi di file, contesto del corso e del modulo e identificatori di job vengono inviati ai servizi Dixeo/IA tramite local_dixeo per generare o elaborare attività.';
-$string['privacy:metadata:queue'] = 'Righe della coda di generazione per corso: prompt, titoli, nomi file, ID job, errori e stato.';
+$string['privacy:metadata:queue'] = 'Righe della coda di generazione per corso: prompt, titoli, nomi file, ID job, errori e stato. Le righe terminali (completate, non riuscite, annullate) vengono eliminate dopo 90 giorni.';
 $string['privacy:metadata:queue:beforemod'] = 'ID opzionale del modulo del corso usato come posizione di inserimento.';
 $string['privacy:metadata:queue:cmid'] = 'L\'ID del modulo del corso creato al completamento della generazione.';
 $string['privacy:metadata:queue:courseid'] = 'Il corso a cui appartiene la riga della coda.';
@@ -133,6 +133,7 @@ $string['status_3'] = 'Fallito';
 $string['status_4'] = 'Annullato';
 $string['success_message'] = 'Una nuova attività di generazione contenuti è stata aggiunta alla coda.';
 $string['success_title'] = 'Successo!';
+$string['task_cleanup_modulegen_queue'] = 'Pulizia delle vecchie voci della coda di generazione moduli Dixeo';
 $string['task_completed_success'] = 'Attività « <a href="{$a->link}">{$a->name}</a> » creata.';
 $string['task_failed'] = 'Generazione del modulo non riuscita: {$a->error}';
 $string['task_process_modulegen_queue'] = 'Elaborare la coda di generazione moduli Dixeo';

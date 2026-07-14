@@ -90,7 +90,7 @@ $string['privacy:metadata:external:instructions'] = 'Generation or fill instruct
 $string['privacy:metadata:external:jobid'] = 'Remote Dixeo job identifiers used to track processing.';
 $string['privacy:metadata:external:modulename'] = 'The activity module type being generated or uploaded.';
 $string['privacy:metadata:externalpurpose'] = 'Instructions, file content or filenames, course and module context, and job identifiers are sent to Dixeo/AI services via local_dixeo to generate or process activities.';
-$string['privacy:metadata:queue'] = 'Course-scoped generation queue rows: prompts, titles, filenames, job IDs, errors, and status.';
+$string['privacy:metadata:queue'] = 'Course-scoped generation queue rows: prompts, titles, filenames, job IDs, errors, and status. Terminal rows (completed, failed, cancelled) are deleted after 90 days.';
 $string['privacy:metadata:queue:beforemod'] = 'Optional course module ID used as the insert position.';
 $string['privacy:metadata:queue:cmid'] = 'The created course module ID when generation completes.';
 $string['privacy:metadata:queue:courseid'] = 'The course that owns the queue row.';
@@ -133,6 +133,7 @@ $string['status_3'] = 'Failed';
 $string['status_4'] = 'Cancelled';
 $string['success_message'] = 'A new content generation task has been added to the queue.';
 $string['success_title'] = 'Success!';
+$string['task_cleanup_modulegen_queue'] = 'Clean up old Dixeo module generation queue entries';
 $string['task_completed_success'] = 'Activity "<a href="{$a->link}">{$a->name}</a>" was created.';
 $string['task_failed'] = 'Module generation failed: {$a->error}';
 $string['task_process_modulegen_queue'] = 'Process Dixeo module generation queue';

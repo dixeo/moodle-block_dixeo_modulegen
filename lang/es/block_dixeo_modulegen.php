@@ -90,7 +90,7 @@ $string['privacy:metadata:external:instructions'] = 'Instrucciones de generació
 $string['privacy:metadata:external:jobid'] = 'Identificadores de trabajo remotos de Dixeo usados para seguir el procesamiento.';
 $string['privacy:metadata:external:modulename'] = 'El tipo de módulo de actividad que se genera o carga.';
 $string['privacy:metadata:externalpurpose'] = 'Las instrucciones, el contenido o nombres de archivo, el contexto de curso y módulo, y los identificadores de trabajo se envían a servicios Dixeo/IA a través de local_dixeo para generar o procesar actividades.';
-$string['privacy:metadata:queue'] = 'Filas de generación por curso: indicaciones, títulos, nombres de archivo, IDs de trabajo, errores y estado.';
+$string['privacy:metadata:queue'] = 'Filas de generación por curso: indicaciones, títulos, nombres de archivo, IDs de trabajo, errores y estado. Las filas terminales (completadas, fallidas, canceladas) se eliminan tras 90 días.';
 $string['privacy:metadata:queue:beforemod'] = 'ID opcional del módulo del curso usado como posición de inserción.';
 $string['privacy:metadata:queue:cmid'] = 'El ID del módulo del curso creado cuando finaliza la generación.';
 $string['privacy:metadata:queue:courseid'] = 'El curso propietario de la fila de la cola.';
@@ -133,6 +133,7 @@ $string['status_3'] = 'Fallido';
 $string['status_4'] = 'Cancelado';
 $string['success_message'] = 'Se ha añadido una nueva tarea de generación de contenido a la cola.';
 $string['success_title'] = '¡Éxito!';
+$string['task_cleanup_modulegen_queue'] = 'Limpiar entradas antiguas de la cola de generación de módulos Dixeo';
 $string['task_completed_success'] = 'Actividad « <a href="{$a->link}">{$a->name}</a> » creada.';
 $string['task_failed'] = 'Error en la generación del módulo: {$a->error}';
 $string['task_process_modulegen_queue'] = 'Procesar la cola de generación de módulos Dixeo';

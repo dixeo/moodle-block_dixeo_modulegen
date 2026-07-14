@@ -172,6 +172,39 @@ class queue_repository {
     }
 
     /**
+     * Delete terminal queue rows (completed, failed, cancelled) older than a cutoff.
+     *
+     * Uses timecompleted when set; rows still pending or processing are never removed.
+     *
+     * @param int $cutoff Unix timestamp; rows with timecompleted older than this are deleted.
+     * @return int Number of rows deleted.
+     */
+    public static function delete_terminal_older_than(int $cutoff): int {
+        global $DB;
+
+        if ($cutoff <= 0) {
+            return 0;
+        }
+
+        $statuses = [
+            queue_status::STATUS_COMPLETED,
+            queue_status::STATUS_FAILED,
+            queue_status::STATUS_CANCELLED,
+        ];
+        [$statussql, $params] = $DB->get_in_or_equal($statuses, SQL_PARAMS_NAMED, 'st');
+        $params['cutoff'] = $cutoff;
+
+        $select = "status {$statussql} AND timecompleted > 0 AND timecompleted < :cutoff";
+        $count = $DB->count_records_select(self::TABLE, $select, $params);
+        if ($count === 0) {
+            return 0;
+        }
+
+        $DB->delete_records_select(self::TABLE, $select, $params);
+        return $count;
+    }
+
+    /**
      * Create base record structure for queue entries.
      *
      * Caller must set status and optionally jobid/timestarted before insert.

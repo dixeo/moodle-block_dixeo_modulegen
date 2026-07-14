@@ -90,7 +90,7 @@ $string['privacy:metadata:external:instructions'] = 'Vom Lehrenden eingegebene G
 $string['privacy:metadata:external:jobid'] = 'Remote-Dixeo-Jobkennungen zur Nachverfolgung der Verarbeitung.';
 $string['privacy:metadata:external:modulename'] = 'Der Aktivitätstyp, der generiert oder hochgeladen wird.';
 $string['privacy:metadata:externalpurpose'] = 'Anweisungen, Dateiinhalte oder -namen, Kurs- und Modulkontext sowie Jobkennungen werden über local_dixeo an Dixeo/KI-Dienste gesendet, um Aktivitäten zu erzeugen oder zu verarbeiten.';
-$string['privacy:metadata:queue'] = 'Kursbezogene Generierungswarteschlange: Prompts, Titel, Dateinamen, Job-IDs, Fehler und Status.';
+$string['privacy:metadata:queue'] = 'Kursbezogene Generierungswarteschlange: Prompts, Titel, Dateinamen, Job-IDs, Fehler und Status. Terminal-Einträge (abgeschlossen, fehlgeschlagen, abgebrochen) werden nach 90 Tagen gelöscht.';
 $string['privacy:metadata:queue:beforemod'] = 'Optionale Kursmodul-ID als Einfügeposition.';
 $string['privacy:metadata:queue:cmid'] = 'Die ID des erstellten Kursmoduls nach Abschluss der Generierung.';
 $string['privacy:metadata:queue:courseid'] = 'Der Kurs, dem der Warteschlangeneintrag gehört.';
@@ -133,6 +133,7 @@ $string['status_3'] = 'Fehlgeschlagen';
 $string['status_4'] = 'Abgebrochen';
 $string['success_message'] = 'Eine neue Inhaltsgenerierungsaufgabe wurde zur Warteschlange hinzugefügt.';
 $string['success_title'] = 'Erfolg!';
+$string['task_cleanup_modulegen_queue'] = 'Alte Einträge der Dixeo-Modulgenerierungs-Warteschlange bereinigen';
 $string['task_completed_success'] = 'Aktivität „<a href="{$a->link}">{$a->name}</a>“ wurde erstellt.';
 $string['task_failed'] = 'Modulgenerierung fehlgeschlagen: {$a->error}';
 $string['task_process_modulegen_queue'] = 'Dixeo-Modulgenerierungs-Warteschlange verarbeiten';

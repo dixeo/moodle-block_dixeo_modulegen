@@ -90,7 +90,7 @@ $string['privacy:metadata:external:instructions'] = 'Instructions de génératio
 $string['privacy:metadata:external:jobid'] = 'Identifiants de tâches Dixeo distants utilisés pour suivre le traitement.';
 $string['privacy:metadata:external:modulename'] = 'Le type de module d\'activité généré ou téléversé.';
 $string['privacy:metadata:externalpurpose'] = 'Les instructions, le contenu ou les noms de fichiers, le contexte du cours et du module, et les identifiants de tâches sont envoyés aux services Dixeo/IA via local_dixeo pour générer ou traiter des activités.';
-$string['privacy:metadata:queue'] = 'Lignes de file de génération par cours : consignes, titres, noms de fichiers, IDs de tâches, erreurs et statut.';
+$string['privacy:metadata:queue'] = 'Lignes de file de génération par cours : consignes, titres, noms de fichiers, IDs de tâches, erreurs et statut. Les lignes terminales (terminées, échouées, annulées) sont supprimées après 90 jours.';
 $string['privacy:metadata:queue:beforemod'] = 'Identifiant optionnel du module de cours utilisé comme position d\'insertion.';
 $string['privacy:metadata:queue:cmid'] = 'L\'identifiant du module de cours créé lorsque la génération est terminée.';
 $string['privacy:metadata:queue:courseid'] = 'Le cours propriétaire de la ligne de file.';
@@ -133,6 +133,7 @@ $string['status_3'] = 'Échoué';
 $string['status_4'] = 'Annulé';
 $string['success_message'] = 'Une nouvelle tâche de génération de contenu a été ajoutée à la file d\'attente.';
 $string['success_title'] = 'Succès !';
+$string['task_cleanup_modulegen_queue'] = 'Nettoyer les anciennes entrées de la file de génération de modules Dixeo';
 $string['task_completed_success'] = 'Activité « <a href="{$a->link}">{$a->name}</a> » créée.';
 $string['task_failed'] = 'Échec de la génération du module : {$a->error}';
 $string['task_process_modulegen_queue'] = 'Traiter la file d\'attente de génération de modules Dixeo';
