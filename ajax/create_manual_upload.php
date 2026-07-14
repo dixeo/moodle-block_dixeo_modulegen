@@ -47,9 +47,30 @@ try {
         throw new moodle_exception('error_unsupported_module', 'block_dixeo_modulegen', '', $modtype);
     }
 
+    // Defense-in-depth: reject bad uploads/placement early. Type, size and MIME rules stay in local_dixeo.
     $uploadedfile = $_FILES['file'] ?? null;
-    if ($uploadedfile === null) {
+    if ($uploadedfile === null || !isset($uploadedfile['error'])) {
         throw new moodle_exception('manual_upload_error_missing', 'block_dixeo_modulegen');
+    }
+    if ((int) $uploadedfile['error'] !== UPLOAD_ERR_OK) {
+        throw new moodle_exception('manual_upload_error_failed', 'block_dixeo_modulegen');
+    }
+    if (empty($uploadedfile['tmp_name']) || !is_uploaded_file($uploadedfile['tmp_name'])) {
+        throw new moodle_exception('manual_upload_error_missing', 'block_dixeo_modulegen');
+    }
+    $filename = clean_param($uploadedfile['name'] ?? '', PARAM_FILE);
+    if ($filename === '') {
+        throw new moodle_exception('manual_upload_error_missing', 'block_dixeo_modulegen');
+    }
+
+    $modinfo = get_fast_modinfo($courseid);
+    if (!$modinfo->get_section_info($sectionnumber)) {
+        throw new moodle_exception('manual_upload_error_invalid_section', 'block_dixeo_modulegen');
+    }
+    if ($beforemod) {
+        if (!isset($modinfo->cms[$beforemod]) || (int) $modinfo->cms[$beforemod]->course !== $courseid) {
+            throw new moodle_exception('manual_upload_error_invalid_beforemod', 'block_dixeo_modulegen');
+        }
     }
 
     $service = \local_dixeo\external\service_factory::get_manual_upload_service();
@@ -63,7 +84,6 @@ try {
 
     $cmid = (int) $result['cmid'];
     $activityname = (string) ($result['name'] ?? '');
-    $filename = clean_param($uploadedfile['name'] ?? '', PARAM_FILE);
     $link = (new moodle_url('/mod/' . $modtype . '/view.php', ['id' => $cmid]))->out(false);
 
     $queueid = \block_dixeo_modulegen\queue_service::log_manual_upload_completed(
