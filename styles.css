@@ -655,6 +655,10 @@
 #manualUploadModal .modal-body {
     padding: 50px;
     background-color: var(--dixeo-modulegen-modal-body-bg);
+
+    .small {
+        font-size: 10px;
+    }
 }
 
 #generationModal #generate_button,
