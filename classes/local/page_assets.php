@@ -30,7 +30,6 @@ use block_dixeo_modulegen\manual_upload_context;
  * Page asset registration for the module generator block.
  */
 class page_assets {
-
     /**
      * Whether the Dixeo module generator block is added to the given course.
      *
@@ -81,8 +80,10 @@ class page_assets {
         }
 
         $context = \context_course::instance($page->course->id);
-        if (!has_capability('local/dixeo:generate', $context)
-                || !has_capability('moodle/course:manageactivities', $context)) {
+        if (
+            !has_capability('local/dixeo:generate', $context)
+            || !has_capability('moodle/course:manageactivities', $context)
+        ) {
             return;
         }
 

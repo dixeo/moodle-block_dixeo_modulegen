@@ -30,7 +30,6 @@ namespace block_dixeo_modulegen;
  * Mode constants for {@see queue_repository} params JSON key `mode`.
  */
 final class queue_task_mode {
-
     /** @var string AI generate-mode queue task. */
     public const MODE_GENERATE = 'generate';
 

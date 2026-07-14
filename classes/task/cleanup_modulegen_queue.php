@@ -30,7 +30,6 @@ use block_dixeo_modulegen\queue_repository;
  * Deletes completed, failed, and cancelled queue rows past the retention window.
  */
 class cleanup_modulegen_queue extends \core\task\scheduled_task {
-
     /** @var int Retention period for terminal queue rows (days). */
     public const RETENTION_DAYS = 90;
 

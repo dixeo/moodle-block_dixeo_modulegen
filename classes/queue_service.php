@@ -50,7 +50,6 @@ use local_dixeo\api\exception\api_exception;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_service {
-
     /**
      * Submit a generation request.
      *
@@ -311,7 +310,6 @@ class queue_service {
                     'sectionnumber' => $task->sectionnumber,
                     'beforemod' => $task->beforemod,
                 ];
-
             } catch (\Exception $e) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();

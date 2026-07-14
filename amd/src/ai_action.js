@@ -24,7 +24,6 @@ define([
 ], function($, Notification, Str, FocusLock, JobManager, CourseSectionRefresh) {
     'use strict';
 
-    let instructionsTextarea = null;
     let isModalClosingDisabled = false;
     let initialized = false;
     /** @type {Object|null} Set before opening modal for retry; consumed in handleModalShow. */
@@ -74,6 +73,99 @@ define([
         },
 
         /**
+         * Prefill the generation modal for retry of a failed task.
+         *
+         * @param {Object} ctx - Retry context from generationModalRetry.
+         * @param {Object} els - Modal form elements.
+         * @param {Element|null} els.titleElement
+         * @param {HTMLInputElement|null} els.beforeModInput
+         * @param {HTMLInputElement|null} els.modulenameInput
+         * @param {HTMLInputElement|null} els.sectionnumberInput
+         * @param {HTMLInputElement|null} els.courseidInput
+         * @param {HTMLInputElement|null} els.retryTaskIdInput
+         * @param {HTMLTextAreaElement|null} els.instructionsTextarea
+         * @param {Element|null} els.generateButton
+         */
+        applyRetryContext: function(ctx, els) {
+            Str.get_string('retrygeneration', 'block_dixeo_modulegen').then((s) => {
+                if (els.titleElement) {
+                    els.titleElement.textContent = s;
+                }
+                return undefined;
+            }).catch(() => undefined);
+            if (els.beforeModInput) {
+                els.beforeModInput.value = ctx.beforemod || '0';
+            }
+            if (els.modulenameInput) {
+                els.modulenameInput.value = ctx.modulename || '';
+            }
+            if (els.sectionnumberInput) {
+                els.sectionnumberInput.value = ctx.sectionnumber || '0';
+            }
+            if (els.courseidInput) {
+                els.courseidInput.value = ctx.courseid || '';
+            }
+            if (els.retryTaskIdInput) {
+                els.retryTaskIdInput.value = ctx.taskId || '';
+            }
+            if (els.instructionsTextarea) {
+                els.instructionsTextarea.value = ctx.instructions || '';
+                els.instructionsTextarea.readOnly = false;
+                this.initializeAutoResize(els.instructionsTextarea);
+                els.instructionsTextarea.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Enter' && !ev.shiftKey) {
+                        ev.preventDefault();
+                        els.generateButton.click();
+                    }
+                });
+            }
+        },
+
+        /**
+         * Prefill the generation modal from the activity chooser button that opened it.
+         *
+         * @param {Event} event - The show.bs.modal event.
+         * @param {Object} els - Modal form elements (same shape as applyRetryContext).
+         */
+        applyChooserButtonContext: function(event, els) {
+            if (els.retryTaskIdInput) {
+                els.retryTaskIdInput.value = '';
+            }
+            const button = event.relatedTarget;
+            if (button) {
+                const modalTitle = button.getAttribute('data-modal-title');
+                const moduleName = button.getAttribute('data-module-name');
+                const sectionNumber = button.getAttribute('data-section-number') ?? 0;
+                const beforeMod = button.getAttribute('data-before-mod');
+
+                if (els.titleElement) {
+                    els.titleElement.textContent = modalTitle;
+                }
+                if (els.beforeModInput) {
+                    els.beforeModInput.value = beforeMod;
+                }
+                if (els.modulenameInput) {
+                    els.modulenameInput.value = moduleName;
+                }
+                if (els.sectionnumberInput) {
+                    els.sectionnumberInput.value = sectionNumber;
+                }
+            }
+
+            if (els.instructionsTextarea) {
+                els.instructionsTextarea.value = '';
+                els.instructionsTextarea.readOnly = false;
+                this.initializeAutoResize(els.instructionsTextarea);
+                els.instructionsTextarea.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Enter' && !ev.shiftKey) {
+                        ev.preventDefault();
+                        els.generateButton.click();
+                    }
+                });
+            }
+        },
+
+        /**
          * Handle modal show event - set up form data and handlers.
          *
          * @param {Event} event - The show.bs.modal event.
@@ -87,85 +179,22 @@ define([
             const closeButton = generationModal.querySelector('.close');
             const generateButton = generationModal.querySelector('#generate_button');
 
-            const titleElement = generationModal.querySelector('.modal-title');
-            const beforeModInput = generationModal.querySelector('input[name="beforemod"]');
-            const modulenameInput = generationModal.querySelector('input[name="modulename"]');
-            const sectionnumberInput = generationModal.querySelector('input[name="sectionnumber"]');
-            const courseidInput = generationModal.querySelector('input[name="courseid"]');
-            const retryTaskIdInput = generationModal.querySelector('input[name="retry_task_id"]');
-            instructionsTextarea = generationModal.querySelector('#instructions');
+            const els = {
+                titleElement: generationModal.querySelector('.modal-title'),
+                beforeModInput: generationModal.querySelector('input[name="beforemod"]'),
+                modulenameInput: generationModal.querySelector('input[name="modulename"]'),
+                sectionnumberInput: generationModal.querySelector('input[name="sectionnumber"]'),
+                courseidInput: generationModal.querySelector('input[name="courseid"]'),
+                retryTaskIdInput: generationModal.querySelector('input[name="retry_task_id"]'),
+                instructionsTextarea: generationModal.querySelector('#instructions'),
+                generateButton: generateButton,
+            };
 
             if (retryContext) {
-                // Open for retry: prefill from failed task.
-                Str.get_string('retrygeneration', 'block_dixeo_modulegen').then((s) => {
-                    if (titleElement) {
-                        titleElement.textContent = s;
-                    }
-                });
-                if (beforeModInput) {
-                    beforeModInput.value = retryContext.beforemod || '0';
-                }
-                if (modulenameInput) {
-                    modulenameInput.value = retryContext.modulename || '';
-                }
-                if (sectionnumberInput) {
-                    sectionnumberInput.value = retryContext.sectionnumber || '0';
-                }
-                if (courseidInput) {
-                    courseidInput.value = retryContext.courseid || '';
-                }
-                if (retryTaskIdInput) {
-                    retryTaskIdInput.value = retryContext.taskId || '';
-                }
-                if (instructionsTextarea) {
-                    instructionsTextarea.value = retryContext.instructions || '';
-                    instructionsTextarea.readOnly = false;
-                    this.initializeAutoResize(instructionsTextarea);
-                    instructionsTextarea.addEventListener('keydown', function(ev) {
-                        if (ev.key === 'Enter' && !ev.shiftKey) {
-                            ev.preventDefault();
-                            generateButton.click();
-                        }
-                    });
-                }
+                this.applyRetryContext(retryContext, els);
                 retryContext = null;
             } else {
-                // Normal open from activity chooser button.
-                const button = event.relatedTarget;
-                if (retryTaskIdInput) {
-                    retryTaskIdInput.value = '';
-                }
-                if (button) {
-                    const modalTitle = button.getAttribute('data-modal-title');
-                    const moduleName = button.getAttribute('data-module-name');
-                    const sectionNumber = button.getAttribute('data-section-number') ?? 0;
-                    const beforeMod = button.getAttribute('data-before-mod');
-
-                    if (titleElement) {
-                        titleElement.textContent = modalTitle;
-                    }
-                    if (beforeModInput) {
-                        beforeModInput.value = beforeMod;
-                    }
-                    if (modulenameInput) {
-                        modulenameInput.value = moduleName;
-                    }
-                    if (sectionnumberInput) {
-                        sectionnumberInput.value = sectionNumber;
-                    }
-                }
-
-                if (instructionsTextarea) {
-                    instructionsTextarea.value = '';
-                    instructionsTextarea.readOnly = false;
-                    this.initializeAutoResize(instructionsTextarea);
-                    instructionsTextarea.addEventListener('keydown', function(ev) {
-                        if (ev.key === 'Enter' && !ev.shiftKey) {
-                            ev.preventDefault();
-                            generateButton.click();
-                        }
-                    });
-                }
+                this.applyChooserButtonContext(event, els);
             }
 
             if (closeButton) {
@@ -181,6 +210,21 @@ define([
             }
 
             document.dispatchEvent(new Event('generationModalReady'));
+        },
+
+        /**
+         * Show a generation error alert.
+         *
+         * @param {Error|string} failure
+         * @returns {Promise}
+         */
+        showGenerationError: function(failure) {
+            return Str.get_string('error_title', 'block_dixeo_modulegen')
+                .then((title) => {
+                    Notification.alert(title, failure.message || String(failure));
+                    return undefined;
+                })
+                .catch(() => undefined);
         },
 
         /**
@@ -221,19 +265,18 @@ define([
             };
 
             const doSubmit = () => {
-                JobManager.submitJob(args)
+                return JobManager.submitJob(args)
                     .then(() => {
                         this.resetFormState(form, closeButton, generateButton, instructionsTextarea, true);
                         if (retryTaskIdInput) {
                             retryTaskIdInput.value = '';
                         }
                         document.dispatchEvent(new Event('newTaskAdded'));
+                        return undefined;
                     })
                     .catch((error) => {
                         this.resetFormState(form, closeButton, generateButton, instructionsTextarea, false);
-                        Str.get_string('error_title', 'block_dixeo_modulegen').then((title) => {
-                            Notification.alert(title, error.message || String(error));
-                        });
+                        return this.showGenerationError(error);
                     });
             };
 
@@ -245,16 +288,14 @@ define([
                         if (retryTaskIdInput) {
                             retryTaskIdInput.value = '';
                         }
-                        doSubmit();
+                        return doSubmit();
                     })
                     .catch((error) => {
                         this.resetFormState(form, closeButton, generateButton, instructionsTextarea, false);
-                        Str.get_string('error_title', 'block_dixeo_modulegen').then((title) => {
-                            Notification.alert(title, error.message || String(error));
-                        });
+                        return this.showGenerationError(error);
                     });
             } else {
-                doSubmit();
+                doSubmit().catch(() => undefined);
             }
         },
 

@@ -30,7 +30,6 @@ use block_dixeo_modulegen\queue_service;
  * Processes one pending generate task for a course (sync then API submit).
  */
 class process_modulegen_queue extends \core\task\adhoc_task {
-
     /**
      * Get the name of this task for admin UIs.
      *

@@ -42,7 +42,6 @@ namespace block_dixeo_modulegen;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_repository {
-
     /** @var string Database table name for the queue. */
     public const TABLE = 'block_dixeo_modulegen_queue';
 

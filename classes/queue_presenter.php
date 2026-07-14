@@ -46,7 +46,6 @@ namespace block_dixeo_modulegen;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_presenter {
-
     /** @var array<string, array>|null Per-request memo of type rows indexed by type identifier. */
     private static ?array $typeindex = null;
 

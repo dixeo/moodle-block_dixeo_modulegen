@@ -36,7 +36,6 @@ use advanced_testcase;
  * @covers \block_dixeo_modulegen\queue_task_mode
  */
 final class queue_fill_integration_test extends advanced_testcase {
-
     public function test_queue_task_mode_defaults(): void {
         $this->assertSame(queue_task_mode::MODE_GENERATE, queue_task_mode::from_params(null));
         $this->assertFalse(queue_task_mode::is_fill(null));

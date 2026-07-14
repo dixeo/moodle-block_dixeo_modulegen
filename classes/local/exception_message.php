@@ -30,7 +30,6 @@ use local_dixeo\api\exception\api_exception;
  * Formats throwables into safe localized messages; logs technical detail for developers.
  */
 class exception_message {
-
     /**
      * Format a message safe to return to an AJAX/WS client.
      *

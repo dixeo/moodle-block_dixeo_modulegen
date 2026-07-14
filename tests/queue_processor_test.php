@@ -39,7 +39,6 @@ use block_dixeo_modulegen\task\process_modulegen_queue;
  * @covers \block_dixeo_modulegen\queue_processor
  */
 final class queue_processor_test extends advanced_testcase {
-
     protected function tearDown(): void {
         service_factory::set_test_file_sync_service(null);
         service_factory::set_test_module_generation_service(null);
@@ -133,6 +132,7 @@ final class queue_processor_test extends advanced_testcase {
         $queueid = queue_repository::insert($record);
 
         $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+        $this->assertDebuggingCalled(null, DEBUG_DEVELOPER);
 
         $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
         $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);

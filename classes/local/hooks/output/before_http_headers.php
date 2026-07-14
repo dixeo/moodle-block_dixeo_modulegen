@@ -30,7 +30,6 @@ use block_dixeo_modulegen\local\page_assets;
  * Register block CSS/AMD before HTTP headers are sent.
  */
 class before_http_headers {
-
     /**
      * Register page assets for the module generator when applicable.
      *

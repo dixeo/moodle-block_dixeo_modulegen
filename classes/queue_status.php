@@ -38,7 +38,6 @@ namespace block_dixeo_modulegen;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 interface queue_status {
-
     /** @var int Waiting for previous job to complete. */
     public const STATUS_PENDING = 0;
 

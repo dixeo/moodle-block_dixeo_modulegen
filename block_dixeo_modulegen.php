@@ -37,7 +37,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_dixeo_modulegen extends block_base {
-
     /** @var string[] Allowed page paths where the block can be displayed. */
     private const ALLOWED_PAGE_PATHS = [
         '/course/view.php',

@@ -5,17 +5,38 @@
     @package    block_dixeo_modulegen
     @author     Josemaria Bolanos <admin@mako.digital>
     @author     Pierre FACQ <pierre.facq@edunao.com>
+
+    Example context (json):
+    {
+        "id": 12,
+        "modulename": "page",
+        "status": 2,
+        "timestarted": 1710000000,
+        "sortorder": 1,
+        "iconurl": "https://example.com/mod/page/pix/monologo.svg",
+        "displaytitle": "Introduction",
+        "link": "https://example.com/mod/page/view.php?id=10",
+        "instructions": "Generate an introduction page",
+        "hasinstructions": true,
+        "iscompleted": true,
+        "completedonshort": "Completed on 14 Jul",
+        "canremove": true,
+        "removetooltip": "Remove from display",
+        "queuemode": "generate",
+        "sectionnumber": 1,
+        "beforemod": 0,
+        "courseid": 2
+    }
 }}
 <div class="task-item list-group-item list-group-item-action flex-column align-items-start border-0 border-bottom rounded-0 status_{{status}}"
     data-task-id="{{id}}"
     data-module-name="{{modulename}}"
     data-status="{{status}}"
     data-timestarted="{{timestarted}}"
-    data-sortorder="{{sortorder}}"
-    role="listitem">
+    data-sortorder="{{sortorder}}">
     <div class="d-flex flex-row w-100 align-items-center">
         <div class="task-item-icon">
-            <img src="{{iconurl}}" alt="" class="task-item-icon-img" width="40" height="40"/>
+            <img src="{{iconurl}}" alt="" class="task-item-icon-img" width="40" height="40">
         </div>
         <div class="task-details flex-grow-1 min-width-0 ml-2">
             {{#link}}

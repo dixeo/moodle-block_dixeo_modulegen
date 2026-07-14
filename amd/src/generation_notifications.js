@@ -73,8 +73,10 @@ define([
     const showSuccessFromString = (stringKey, params) => {
         return Str.get_string(stringKey, 'block_dixeo_modulegen', params).then((message) => {
             showNotification('success', message);
+            return undefined;
         }).catch(() => {
             // Lang string missing or fetch failed — skip silently.
+            return undefined;
         });
     };
 
@@ -122,8 +124,10 @@ define([
         const error = detail.error || '';
         Str.get_string('task_failed', 'block_dixeo_modulegen', {error: error}).then((message) => {
             showNotification('error', message);
+            return undefined;
         }).catch(() => {
             // Lang string missing or fetch failed — skip silently.
+            return undefined;
         });
     };
 

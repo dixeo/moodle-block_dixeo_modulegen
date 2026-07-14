@@ -28,7 +28,6 @@ namespace block_dixeo_modulegen;
  * Queues adhoc tasks to process pending modulegen jobs per course.
  */
 class queue_processor {
-
     /**
      * Schedule background processing for a course queue.
      *

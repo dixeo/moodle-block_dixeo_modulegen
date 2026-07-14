@@ -65,7 +65,6 @@ use local_dixeo\external\service_factory;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class api extends external_api {
-
     /**
      * Validate course access and capabilities.
      *
@@ -192,13 +191,11 @@ class api extends external_api {
                 'jobid' => $result['jobid'] ?? '',
                 'status' => $result['status'],
             ];
-
         } catch (api_exception $e) {
             return self::create_error_response(
                 $e->get_error_code(),
                 exception_message::format_for_client($e, 'error_queue_failed')
             );
-
         } catch (\Throwable $e) {
             return self::create_error_response(
                 'submission_failed',
@@ -388,10 +385,12 @@ class api extends external_api {
                     return self::create_update_error_response($validationerror);
                 }
                 // Do not persist client-supplied remote/API error text on the queue row.
-                if (!queue_service::fail(
-                    $params['queueid'],
-                    get_string('generationfailed', 'block_dixeo_modulegen')
-                )) {
+                if (
+                    !queue_service::fail(
+                        $params['queueid'],
+                        get_string('generationfailed', 'block_dixeo_modulegen')
+                    )
+                ) {
                     return self::create_update_error_response('Cannot fail this task');
                 }
                 break;

@@ -32,7 +32,6 @@ use local_dixeo\service\plugin_installation_service;
  * Manual upload chooser and modal context helpers.
  */
 class manual_upload_context {
-
     /**
      * Config passed to activitychooser AMD init.
      *

@@ -179,8 +179,10 @@ define([
                 }
             }
             dispatchJobEvent('completed', detail);
+            return undefined;
         }).catch(() => {
             dispatchJobEvent('completed', detail);
+            return undefined;
         });
     };
 
@@ -246,7 +248,8 @@ define([
             args: {queueid: queueId}
         }])[0].then((result) => {
             if (!result.success) {
-                throw new Error(result.message || 'Failed to remove task');
+                const message = result.message || 'Failed to remove task';
+                throw new Error(message);
             }
             return result;
         });
@@ -261,6 +264,7 @@ define([
      * @returns {Promise<{cmid: number}>} Resolves with the created module ID.
      */
     const createModuleFromJob = (jobId, queueId, args) => {
+        let createdCmid = 0;
         return Ajax.call([{
             methodname: 'local_dixeo_create_module_from_job',
             args: {
@@ -277,8 +281,9 @@ define([
             }
 
             // Mark task complete on server before resolving, so queue list refresh sees updated status.
-            return updateTask(queueId, 'complete', result.cmid, '', jobId).then(() => ({cmid: result.cmid}));
-        });
+            createdCmid = result.cmid;
+            return updateTask(queueId, 'complete', result.cmid, '', jobId);
+        }).then(() => ({cmid: createdCmid}));
     };
 
     /**
@@ -286,7 +291,7 @@ define([
      *
      * @param {number} queueId - The queue record ID.
      */
-    const pollJobStatus = (queueId) => {
+    const pollJobStatus = async(queueId) => {
         const job = activeJobs.get(queueId);
         if (!job || !job.jobId) {
             return;
@@ -302,30 +307,31 @@ define([
             return;
         }
 
-        Ajax.call([{
-            methodname: 'local_dixeo_get_job_status',
-            args: {
-                jobid: job.jobId,
-                courseid: job.args.courseid || courseId,
-            }
-        }])[0].then((status) => {
+        try {
+            const status = await Ajax.call([{
+                methodname: 'local_dixeo_get_job_status',
+                args: {
+                    jobid: job.jobId,
+                    courseid: job.args.courseid || courseId,
+                }
+            }])[0];
+
             // Job may have been cancelled while polling.
             if (!activeJobs.has(queueId)) {
                 return;
             }
 
             if (status.status === 'completed') {
-                createModuleFromJob(job.jobId, queueId, job.args)
-                    .then((result) => {
-                        job.status = 'completed';
-                        dispatchCompletionEvent(queueId, job, result.cmid, job.args.sectionnumber);
-                        activeJobs.delete(queueId);
-                    })
-                    .catch((error) => {
-                        job.status = 'failed';
-                        dispatchFailureEvent(queueId, job, error.message);
-                        activeJobs.delete(queueId);
-                    });
+                try {
+                    const result = await createModuleFromJob(job.jobId, queueId, job.args);
+                    job.status = 'completed';
+                    dispatchCompletionEvent(queueId, job, result.cmid, job.args.sectionnumber);
+                    activeJobs.delete(queueId);
+                } catch (error) {
+                    job.status = 'failed';
+                    dispatchFailureEvent(queueId, job, error.message);
+                    activeJobs.delete(queueId);
+                }
                 return;
             }
 
@@ -340,13 +346,12 @@ define([
 
             // Still processing - schedule next poll.
             job.timeoutId = setTimeout(() => pollJobStatus(queueId), JOB_POLL_INTERVAL_MS);
-
-        }).catch((error) => {
+        } catch (error) {
             job.status = 'failed';
             updateTask(queueId, 'fail', 0, error.message || 'Polling error', job.jobId);
             dispatchFailureEvent(queueId, job, error.message || 'Polling error');
             activeJobs.delete(queueId);
-        });
+        }
     };
 
     /**
@@ -434,7 +439,7 @@ define([
 
         fetchQueueStatus(true).then((data) => {
             if (!data.tasks || !Array.isArray(data.tasks)) {
-                return;
+                return undefined;
             }
 
             // Check each of our tracked queued jobs.
@@ -493,9 +498,11 @@ define([
                 queuePollTimeoutId = null;
             }
 
+            return undefined;
         }).catch(() => {
             // Retry on error.
             queuePollTimeoutId = setTimeout(pollQueueStatus, QUEUE_POLL_INTERVAL_MS);
+            return undefined;
         });
     };
 
@@ -611,6 +618,7 @@ define([
                     if (data.tasks) {
                         resumeProcessingJobs(data.tasks);
                     }
+                    return undefined;
                 }).catch((error) => {
                     if (attempt < maxRetries) {
                         // Retry after delay.
@@ -624,6 +632,7 @@ define([
                     initialized = true;
                     // eslint-disable-next-line no-console
                     console.warn('JobManager init failed after retries:', error);
+                    return undefined;
                 });
             };
 
@@ -661,7 +670,8 @@ define([
                 args: args
             }])[0].then((data) => {
                 if (!data.success) {
-                    throw new Error(data.error?.message || 'Failed to submit generation');
+                    const message = data.error?.message || 'Failed to submit generation';
+                    throw new Error(message);
                 }
 
                 const queueId = data.queueid;
