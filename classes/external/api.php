@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Unified external API for the Dixeo Module Generator block.
  *
@@ -30,8 +45,6 @@ use block_dixeo_modulegen\queue_task_mode;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Unified external API class for module generation.
@@ -109,9 +122,7 @@ class api extends external_api {
         ];
     }
 
-    // =========================================================================
-    // submit_generation - Queue a new module generation request
-    // =========================================================================
+    // Submit generation: queue a new module generation request.
 
     /**
      * Parameters for submit_generation.
@@ -138,8 +149,8 @@ class api extends external_api {
      * @param int $courseid The course ID.
      * @param string $modulename The module type to generate.
      * @param string $instructions Instructions for the AI.
-     * @param int $sectionnumber Section number to add module to.
-     * @param int $beforemod Course module ID to insert before.
+     * @param int|null $sectionnumber Section number to add module to.
+     * @param int|null $beforemod Course module ID to insert before.
      * @param string|null $lang Language code for content.
      * @return array Result with queue_id, empty job_id, and status queued.
      */
@@ -206,9 +217,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // get_queue_status - Get queue tasks and statistics for a course
-    // =========================================================================
+    // Get queue status: tasks and statistics for a course.
 
     /**
      * Parameters for get_queue_status.
@@ -291,9 +300,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // update_task - Complete, fail, or cancel a task
-    // =========================================================================
+    // Update task: complete, fail, or cancel a task.
 
     /**
      * Parameters for update_task.
@@ -399,9 +406,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // retry_fill_task - Retry failed fill-mode row (Dixeo fill_module + create)
-    // =========================================================================
+    // Retry fill task: retry failed fill-mode row (Dixeo fill_module + create).
 
     /**
      * Parameters for retry_fill_task.
@@ -515,6 +520,14 @@ class api extends external_api {
     /**
      * Run fill_module job, wait, create activity (used for fill retry only).
      *
+     * @param string $modulename Dixeo module type identifier.
+     * @param string $instructions Fill instructions.
+     * @param int $courseid Course id.
+     * @param int $sectionnumber Course section number.
+     * @param int|null $beforemod Insert-before cm id or null.
+     * @param string $filldisplaytitle Display title used for the fill job.
+     * @param string|null $nameoverride Optional activity name override.
+     * @param string $summaryraw Fill summary payload.
      * @return array{success: bool, cmid: int, error: string, fill_jobid: string}
      */
     private static function run_fill_retry_pipeline(
@@ -548,8 +561,8 @@ class api extends external_api {
             );
             $filljobid = (string) ($operation->jobid ?? '');
 
-            $waitResult = $jobservice->wait_for_job($operation->jobid, 'fill_module');
-            if (!$waitResult->is_completed()) {
+            $waitresult = $jobservice->wait_for_job($operation->jobid, 'fill_module');
+            if (!$waitresult->is_completed()) {
                 return [
                     'success' => false,
                     'cmid' => 0,
@@ -597,9 +610,7 @@ class api extends external_api {
         }
     }
 
-    // =========================================================================
-    // delete_task - Remove a task from the queue (database)
-    // =========================================================================
+    // Delete task: remove a task from the queue (database).
 
     /**
      * Parameters for delete_task.

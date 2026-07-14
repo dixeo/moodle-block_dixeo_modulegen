@@ -28,8 +28,6 @@ use local_dixeo\service\file_sync_service;
 use local_dixeo\service\manual_upload_service;
 use local_dixeo\service\plugin_installation_service;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Manual upload chooser and modal context helpers.
  */

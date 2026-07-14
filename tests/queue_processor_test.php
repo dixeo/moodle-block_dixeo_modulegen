@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Tests for modulegen queue submit and background processor scheduling.
  *
@@ -10,8 +25,6 @@
 
 namespace block_dixeo_modulegen;
 
-defined('MOODLE_INTERNAL') || die();
-
 use advanced_testcase;
 use local_dixeo\dto\operation_result;
 use local_dixeo\external\service_factory;
@@ -20,6 +33,8 @@ use local_dixeo\service\module_generation_service;
 use block_dixeo_modulegen\task\process_modulegen_queue;
 
 /**
+ * Tests for modulegen queue submit and background processor scheduling.
+ *
  * @covers \block_dixeo_modulegen\queue_service
  * @covers \block_dixeo_modulegen\queue_processor
  */
