@@ -106,14 +106,16 @@ class queue_service {
     /**
      * Mark a task as completed and schedule processing of the next pending task.
      *
+     * Only allowed when the task is currently PROCESSING.
+     *
      * @param int $queueid The queue record ID.
      * @param int $cmid The created course module ID.
-     * @return null Background processor handles the next task.
+     * @return bool True when the task was finalized, false otherwise.
      */
-    public static function complete(int $queueid, int $cmid): ?array {
+    public static function complete(int $queueid, int $cmid): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task) {
-            return null;
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return false;
         }
 
         self::finalize_task($task, queue_status::STATUS_COMPLETED, function ($task) use ($cmid) {
@@ -122,20 +124,22 @@ class queue_service {
 
         self::schedule_queue_processing((int) $task->courseid);
 
-        return null;
+        return true;
     }
 
     /**
      * Mark a task as failed and schedule processing of the next pending task.
      *
+     * Only allowed when the task is currently PROCESSING.
+     *
      * @param int $queueid The queue record ID.
      * @param string $error The error message.
-     * @return null Background processor handles the next task.
+     * @return bool True when the task was finalized, false otherwise.
      */
-    public static function fail(int $queueid, string $error): ?array {
+    public static function fail(int $queueid, string $error): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task) {
-            return null;
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return false;
         }
 
         self::finalize_task($task, queue_status::STATUS_FAILED, function ($task) use ($error) {
@@ -144,7 +148,7 @@ class queue_service {
 
         self::schedule_queue_processing((int) $task->courseid);
 
-        return null;
+        return true;
     }
 
     /**

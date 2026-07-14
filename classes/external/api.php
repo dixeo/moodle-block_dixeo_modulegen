@@ -79,6 +79,7 @@ class api extends external_api {
         global $PAGE;
         require_course_login($courseid);
         $context = \context_course::instance($courseid);
+        self::validate_context($context);
         $PAGE->set_context($context);
         require_capability('local/dixeo:generate', $context);
         require_capability('moodle/course:manageactivities', $context);
@@ -313,6 +314,12 @@ class api extends external_api {
             'action' => new external_value(PARAM_ALPHA, 'Action: complete, fail, or cancel'),
             'cmid' => new external_value(PARAM_INT, 'Created module ID (for complete)', VALUE_DEFAULT, 0),
             'error' => new external_value(PARAM_RAW, 'Error message (for fail)', VALUE_DEFAULT, ''),
+            'jobid' => new external_value(
+                PARAM_TEXT,
+                'Job UUID required for complete/fail when task has a jobid',
+                VALUE_DEFAULT,
+                ''
+            ),
         ]);
     }
 
@@ -325,19 +332,22 @@ class api extends external_api {
      * @param string $action The action: complete, fail, or cancel.
      * @param int $cmid The created module ID (for complete action).
      * @param string $error The error message (for fail action).
+     * @param string $jobid Job UUID correlating to the processing task (required for complete/fail).
      * @return array Result with success status and next_task info if applicable.
      */
     public static function update_task(
         int $queueid,
         string $action,
         int $cmid = 0,
-        string $error = ''
+        string $error = '',
+        string $jobid = ''
     ): array {
         $params = self::validate_parameters(self::update_task_parameters(), [
             'queueid' => $queueid,
             'action' => $action,
             'cmid' => $cmid,
             'error' => $error,
+            'jobid' => $jobid,
         ]);
 
         // Get task to verify course access.
@@ -348,18 +358,31 @@ class api extends external_api {
 
         self::validate_course_access($task->courseid);
 
-        $nexttask = null;
-
         switch ($params['action']) {
             case 'complete':
+                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
+                if ($validationerror !== null) {
+                    return self::create_update_error_response($validationerror);
+                }
                 if ($params['cmid'] <= 0) {
                     return self::create_update_error_response('cmid required for complete action');
                 }
-                $nexttask = queue_service::complete($params['queueid'], $params['cmid']);
+                if (!self::cmid_belongs_to_course($params['cmid'], (int) $task->courseid)) {
+                    return self::create_update_error_response('cmid does not belong to the task course');
+                }
+                if (!queue_service::complete($params['queueid'], $params['cmid'])) {
+                    return self::create_update_error_response('Cannot complete this task');
+                }
                 break;
 
             case 'fail':
-                $nexttask = queue_service::fail($params['queueid'], $params['error']);
+                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
+                if ($validationerror !== null) {
+                    return self::create_update_error_response($validationerror);
+                }
+                if (!queue_service::fail($params['queueid'], $params['error'])) {
+                    return self::create_update_error_response('Cannot fail this task');
+                }
                 break;
 
             case 'cancel':
@@ -373,17 +396,46 @@ class api extends external_api {
                 return self::create_update_error_response('Invalid action: ' . $params['action']);
         }
 
-        $result = [
+        return [
             'success' => true,
             'message' => 'Task updated',
         ];
+    }
 
-        // Include next task info if one was started.
-        if ($nexttask) {
-            $result['next_task'] = $nexttask;
+    /**
+     * Ensure complete/fail only apply to processing tasks with a matching jobid.
+     *
+     * @param \stdClass $task Queue row.
+     * @param string $jobid Caller-supplied job UUID.
+     * @return string|null Error message, or null when valid.
+     */
+    private static function validate_complete_or_fail_transition(\stdClass $task, string $jobid): ?string {
+        if ((int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return 'Invalid task state for this action';
         }
 
-        return $result;
+        $taskjobid = trim((string) ($task->jobid ?? ''));
+        if ($taskjobid === '') {
+            return 'Task has no jobid';
+        }
+
+        if (trim($jobid) === '' || trim($jobid) !== $taskjobid) {
+            return 'jobid mismatch';
+        }
+
+        return null;
+    }
+
+    /**
+     * Check that a course module exists and belongs to the given course.
+     *
+     * @param int $cmid Course module ID.
+     * @param int $courseid Expected course ID.
+     * @return bool
+     */
+    private static function cmid_belongs_to_course(int $cmid, int $courseid): bool {
+        $cm = get_coursemodule_from_id(null, $cmid, $courseid, false, IGNORE_MISSING);
+        return $cm !== false && (int) $cm->course === $courseid;
     }
 
     /**

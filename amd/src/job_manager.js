@@ -208,9 +208,10 @@ define([
      * @param {string} action - The action: complete, fail, or cancel.
      * @param {number} cmid - The created module ID (for complete).
      * @param {string} errorMsg - The error message (for fail).
+     * @param {string} [jobId] - Job UUID required for complete/fail correlation.
      * @returns {Promise} Resolves when update completes.
      */
-    const updateTask = (queueId, action, cmid, errorMsg) => {
+    const updateTask = (queueId, action, cmid, errorMsg, jobId) => {
         if (!queueId) {
             return Promise.resolve();
         }
@@ -221,7 +222,8 @@ define([
                 queueid: queueId,
                 action: action,
                 cmid: cmid || 0,
-                error: errorMsg || ''
+                error: errorMsg || '',
+                jobid: jobId || ''
             }
         }])[0].catch(() => {
             // Silently ignore - primary operation already handled.
@@ -270,12 +272,12 @@ define([
         }])[0].then((result) => {
             if (!result.success) {
                 const errorMsg = result.errormessage || 'Failed to create module';
-                updateTask(queueId, 'fail', 0, errorMsg);
+                updateTask(queueId, 'fail', 0, errorMsg, jobId);
                 throw new Error(errorMsg);
             }
 
             // Mark task complete on server before resolving, so queue list refresh sees updated status.
-            return updateTask(queueId, 'complete', result.cmid, '').then(() => ({cmid: result.cmid}));
+            return updateTask(queueId, 'complete', result.cmid, '', jobId).then(() => ({cmid: result.cmid}));
         });
     };
 
@@ -294,7 +296,7 @@ define([
 
         if (job.attempts > MAX_POLL_ATTEMPTS) {
             job.status = 'failed';
-            updateTask(queueId, 'fail', 0, 'Generation timed out');
+            updateTask(queueId, 'fail', 0, 'Generation timed out', job.jobId);
             dispatchFailureEvent(queueId, job, 'Generation timed out');
             activeJobs.delete(queueId);
             return;
@@ -330,7 +332,7 @@ define([
             if (status.status === 'failed') {
                 const errorMsg = status.error?.detail || 'Generation failed';
                 job.status = 'failed';
-                updateTask(queueId, 'fail', 0, errorMsg);
+                updateTask(queueId, 'fail', 0, errorMsg, job.jobId);
                 dispatchFailureEvent(queueId, job, errorMsg);
                 activeJobs.delete(queueId);
                 return;
@@ -341,7 +343,7 @@ define([
 
         }).catch((error) => {
             job.status = 'failed';
-            updateTask(queueId, 'fail', 0, error.message || 'Polling error');
+            updateTask(queueId, 'fail', 0, error.message || 'Polling error', job.jobId);
             dispatchFailureEvent(queueId, job, error.message || 'Polling error');
             activeJobs.delete(queueId);
         });
