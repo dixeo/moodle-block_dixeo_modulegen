@@ -37,6 +37,12 @@ try {
     $sectionnumber = optional_param('sectionnumber', 0, PARAM_INT);
     $beforemod = optional_param('beforemod', 0, PARAM_INT);
 
+    // Fail closed: validate course context and capabilities before delegating to local_dixeo.
+    require_course_login($courseid);
+    $context = context_course::instance($courseid);
+    require_capability('local/dixeo:generate', $context);
+    require_capability('moodle/course:manageactivities', $context);
+
     if (!in_array($modtype, ['scorm', 'resource'], true)) {
         throw new moodle_exception('error_unsupported_module', 'block_dixeo_modulegen', '', $modtype);
     }
