@@ -42,6 +42,7 @@ use block_dixeo_modulegen\queue_repository;
 use block_dixeo_modulegen\queue_presenter;
 use block_dixeo_modulegen\queue_status;
 use block_dixeo_modulegen\queue_task_mode;
+use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
@@ -193,10 +194,16 @@ class api extends external_api {
             ];
 
         } catch (api_exception $e) {
-            return self::create_error_response($e->get_error_code(), $e->getMessage());
+            return self::create_error_response(
+                $e->get_error_code(),
+                exception_message::format_for_client($e, 'error_queue_failed')
+            );
 
-        } catch (\Exception $e) {
-            return self::create_error_response('submission_failed', $e->getMessage());
+        } catch (\Throwable $e) {
+            return self::create_error_response(
+                'submission_failed',
+                exception_message::format_for_client($e, 'error_queue_failed')
+            );
         }
     }
 
@@ -380,7 +387,11 @@ class api extends external_api {
                 if ($validationerror !== null) {
                     return self::create_update_error_response($validationerror);
                 }
-                if (!queue_service::fail($params['queueid'], $params['error'])) {
+                // Do not persist client-supplied remote/API error text on the queue row.
+                if (!queue_service::fail(
+                    $params['queueid'],
+                    get_string('generationfailed', 'block_dixeo_modulegen')
+                )) {
                     return self::create_update_error_response('Cannot fail this task');
                 }
                 break;
@@ -635,13 +646,10 @@ class api extends external_api {
             );
 
             if (empty($result['success'])) {
-                $errmsg = !empty($result['errormessage'])
-                    ? (string) $result['errormessage']
-                    : get_string('retry_fill_createfailed', 'block_dixeo_modulegen');
                 return [
                     'success' => false,
                     'cmid' => 0,
-                    'error' => $errmsg,
+                    'error' => get_string('retry_fill_createfailed', 'block_dixeo_modulegen'),
                     'fill_jobid' => $filljobid,
                 ];
             }
@@ -656,7 +664,7 @@ class api extends external_api {
             return [
                 'success' => false,
                 'cmid' => 0,
-                'error' => $e->getMessage(),
+                'error' => exception_message::format_for_client($e, 'retry_fill_failed'),
                 'fill_jobid' => $filljobid,
             ];
         }

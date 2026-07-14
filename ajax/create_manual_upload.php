@@ -110,6 +110,9 @@ try {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage(),
+        'message' => \block_dixeo_modulegen\local\exception_message::format_for_client(
+            $e,
+            'manual_upload_error_failed'
+        ),
     ]);
 }

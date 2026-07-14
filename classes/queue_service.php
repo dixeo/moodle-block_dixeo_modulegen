@@ -29,6 +29,7 @@
 
 namespace block_dixeo_modulegen;
 
+use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
 use local_dixeo\service\job_service;
 use local_dixeo\api\exception\api_exception;
@@ -250,7 +251,7 @@ class queue_service {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
                 self::update_task_params($task, [
-                    'error' => 'Invalid queue state: fill tasks cannot be pending.',
+                    'error' => get_string('error_invalid_fill_pending', 'block_dixeo_modulegen'),
                 ]);
                 queue_repository::update($task);
                 continue;
@@ -259,7 +260,7 @@ class queue_service {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
                 self::update_task_params($task, [
-                    'error' => 'Invalid queue state: manual upload tasks cannot be pending.',
+                    'error' => get_string('error_invalid_manual_pending', 'block_dixeo_modulegen'),
                 ]);
                 queue_repository::update($task);
                 continue;
@@ -269,7 +270,9 @@ class queue_service {
             if ($userid <= 0) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => 'Missing submitter user for file sync.']);
+                self::update_task_params($task, [
+                    'error' => get_string('error_missing_submitter', 'block_dixeo_modulegen'),
+                ]);
                 queue_repository::update($task);
                 continue;
             }
@@ -279,7 +282,9 @@ class queue_service {
             } catch (\Throwable $e) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => $e->getMessage()]);
+                self::update_task_params($task, [
+                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
+                ]);
                 queue_repository::update($task);
                 continue;
             }
@@ -310,7 +315,9 @@ class queue_service {
             } catch (\Exception $e) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => $e->getMessage()]);
+                self::update_task_params($task, [
+                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
+                ]);
                 queue_repository::update($task);
             }
         }
