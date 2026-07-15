@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Presenter for queue data formatting and display.
  *
@@ -14,8 +29,6 @@
  */
 
 namespace block_dixeo_modulegen;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Presenter class for queue data formatting.
@@ -33,7 +46,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_presenter {
-
     /** @var array<string, array>|null Per-request memo of type rows indexed by type identifier. */
     private static ?array $typeindex = null;
 
@@ -62,10 +74,10 @@ class queue_presenter {
 
         // Resolve title: prefer DB title when set; for completed tasks with cmid use live module name from Moodle.
         $dbtitle = isset($task->title) ? trim((string) $task->title) : '';
-        $moduleTitle = self::get_module_title($task);
-        if ($moduleTitle !== '') {
-            $task->title = $moduleTitle;
-        } elseif ($dbtitle !== '') {
+        $moduletitle = self::get_module_title($task);
+        if ($moduletitle !== '') {
+            $task->title = $moduletitle;
+        } else if ($dbtitle !== '') {
             $task->title = $dbtitle;
         }
 
@@ -125,6 +137,9 @@ class queue_presenter {
      *
      * True for H5P variants (every h5p_* type maps to mod_h5pactivity); false for
      * 1:1 types like page/glossary/quiz where the icon alone identifies the kind.
+     *
+     * @param array|null $row Catalogue row for a Dixeo module type.
+     * @return bool True when more than one catalogue type shares the same component.
      */
     private static function is_shared_component_variant(?array $row): bool {
         if ($row === null || empty($row['component'])) {
@@ -144,10 +159,12 @@ class queue_presenter {
     }
 
     /**
-     * Resolved Dixeo type catalogue indexed by type identifier — per-request memo.
+     * Look up a Dixeo type catalogue row by module type identifier.
      *
-     * Returns null per row when the API is unreachable; callers fall back to the bare type name.
+     * Returns null when the type is unknown or the API is unreachable; callers fall back
+     * to the bare type name.
      *
+     * @param string $modulename Dixeo module type identifier.
      * @return array|null The row for the given type, or null.
      */
     private static function find_type_row(string $modulename): ?array {
@@ -231,14 +248,14 @@ class queue_presenter {
      *
      * Returns active (queued + processing) and errors (failed + cancelled).
      *
-     * @param array $statusCounts Array of records with status and count fields.
+     * @param array $statuscounts Array of records with status and count fields.
      * @return array Statistics with active and errors counts.
      */
-    public static function calculate_statistics(array $statusCounts): array {
+    public static function calculate_statistics(array $statuscounts): array {
         $active = 0;
         $errors = 0;
 
-        foreach ($statusCounts as $record) {
+        foreach ($statuscounts as $record) {
             $status = (int) $record->status;
             $count = (int) $record->count;
             switch ($status) {

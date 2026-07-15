@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Language strings for the Dixeo Module Generator block.
  *
@@ -9,107 +24,123 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['pluginname'] = 'Generador de Contenido Dixeo';
-$string['blocktitle'] = 'Añadir contenido generado por IA';
-$string['dixeo_modulegen:addinstance'] = 'Añadir un bloque Generador de Contenido Dixeo';
-$string['dixeo_modulegen:myaddinstance'] = 'Añadir un bloque Generador de Contenido Dixeo al panel de control';
 
-$string['aiactivities'] = 'Generador de Contenido Dixeo';
-$string['notavailable'] = 'Este módulo no está disponible o no está configurado correctamente. Por favor, inténtelo de nuevo más tarde o contacte con su administrador.';
-$string['pluginrequired'] = 'Instale el plugin {$a} para generar este tipo de actividad.';
+defined('MOODLE_INTERNAL') || die();
 
-$string['generate'] = 'Generar';
-$string['add'] = 'Añadir';
-$string['prompt_placeholder'] = 'Instrucciones de generación para Dixeo';
-$string['loading'] = 'Generando...';
-
-$string['error_title'] = '¡Vaya!';
-$string['error_unsupported_module'] = 'Tipo de módulo no compatible: {$a}';
-$string['error_queue_failed'] = 'Error al añadir la tarea a la cola de generación.';
-$string['success_title'] = '¡Éxito!';
-$string['success_message'] = 'Se ha añadido una nueva tarea de generación de contenido a la cola.';
-$string['generation_complete'] = '¡Su contenido ha sido generado con éxito! Actualice la página para verlo.';
-
-// Queue management.
-$string['opengeneratorqueue'] = 'Abrir cola del generador';
-$string['queue_processor'] = 'Procesador de Cola de Generación de Contenido Dixeo';
-$string['queuemodaltitle'] = 'Cola de Generación';
-$string['notasksinthequeue'] = 'La cola de tareas está actualmente vacía.';
-$string['queued'] = 'En cola';
-$string['processing'] = 'Procesando';
-$string['completed'] = 'Completado';
 $string['activequeued'] = 'Activos/En cola';
-$string['idle'] = 'Inactivo';
-$string['needsattention'] = 'Necesitan atención';
+$string['add'] = 'Añadir';
+$string['aiactivities'] = 'Generador de Contenido Dixeo';
+$string['blocktitle'] = 'Añadir contenido generado por IA';
+$string['cancelgeneration'] = 'Cancelar generación';
 $string['cancelled'] = 'Cancelado';
 $string['canceltask'] = 'Cancelar';
 $string['canceltaskconfirm'] = '¿Está seguro de que desea cancelar esta tarea? Esta acción no se puede deshacer.';
-$string['taskcancelled'] = 'La tarea se ha cancelado correctamente.';
-$string['taskcancelerror'] = 'Se produjo un error al intentar cancelar la tarea. Por favor, inténtelo de nuevo más tarde.';
-
-$string['generationqueued'] = 'Esperando en cola';
-$string['generationinprogress'] = 'Generación en progreso (<span class="elapsed-time">0:00</span>)';
-$string['generationfailed'] = 'Generación fallida';
+$string['category_assessment'] = 'Evaluación';
+$string['category_content'] = 'Contenido';
+$string['category_interactive'] = 'Interactivo';
+$string['category_resource'] = 'Recursos';
+$string['completed'] = 'Completado';
+$string['completedon'] = 'Completado el {$a}';
+$string['copyinstructions'] = 'Copiar instrucciones';
+$string['dixeo_modulegen:addinstance'] = 'Añadir un bloque Generador de Contenido Dixeo';
+$string['dixeo_modulegen:myaddinstance'] = 'Añadir un bloque Generador de Contenido Dixeo al panel de control';
+$string['error_invalid_fill_pending'] = 'Estado de cola no válido: las tareas de relleno no pueden estar pendientes.';
+$string['error_invalid_manual_pending'] = 'Estado de cola no válido: las cargas manuales no pueden estar pendientes.';
+$string['error_missing_submitter'] = 'Falta el usuario remitente para la sincronización de archivos.';
+$string['error_queue_failed'] = 'Error al añadir la tarea a la cola de generación.';
+$string['error_title'] = '¡Vaya!';
+$string['error_unexpected'] = 'Algo salió mal. Inténtelo de nuevo o contacte con el administrador.';
+$string['error_unsupported_module'] = 'Tipo de módulo no compatible: {$a}';
+$string['filltask_defaulttitle'] = 'Nueva actividad';
+$string['generate'] = 'Generar';
+$string['generation_complete'] = '¡Su contenido ha sido generado con éxito! Actualice la página para verlo.';
 $string['generationcancelled'] = 'Generación cancelada';
 $string['generationerror'] = 'Error de generación';
-$string['next'] = 'Siguiente';
-$string['newmoduletype'] = 'Nuevo {$a}';
-$string['removefromqueue'] = 'Quitar de la cola';
-$string['removefromdisplay'] = 'Quitar de la vista';
-$string['cancelgeneration'] = 'Cancelar generación';
-$string['completedon'] = 'Completado el {$a}';
-$string['viewinstructions'] = 'Ver instrucciones';
-$string['copyinstructions'] = 'Copiar instrucciones';
+$string['generationfailed'] = 'Generación fallida';
+$string['generationinprogress'] = 'Generación en progreso (<span class="elapsed-time">0:00</span>)';
+$string['generationqueued'] = 'Esperando en cola';
+$string['idle'] = 'Inactivo';
 $string['instructionscopied'] = 'Instrucciones copiadas';
+$string['loading'] = 'Generando...';
+$string['manual_upload_browse'] = 'Elegir un archivo';
+$string['manual_upload_drag'] = 'Arrastre un archivo aquí o haga clic para buscar';
+$string['manual_upload_error_failed'] = 'No se pudo crear la actividad.';
+$string['manual_upload_error_file_too_large'] = 'El archivo es demasiado grande. Por favor, sube un archivo menor de {$a->maxsize}.';
+$string['manual_upload_error_invalid_beforemod'] = 'La posición de inserción no pertenece a este curso.';
+$string['manual_upload_error_invalid_resource'] = 'Solo se aceptan estos formatos de archivo: {$a->ragformats}.';
+$string['manual_upload_error_invalid_scorm'] = 'Solo se aceptan paquetes SCORM de Articulate Storyline (.zip).';
+$string['manual_upload_error_invalid_section'] = 'La sección del curso seleccionada no es válida.';
+$string['manual_upload_error_missing'] = 'El archivo es obligatorio.';
+$string['manual_upload_resource_description'] = 'Formatos aceptados: {$a->ragformats}. (Máx. {$a->maxsize})';
+$string['manual_upload_scorm_description'] = 'Solo paquetes SCORM de Articulate Storyline (.zip).';
+$string['manual_upload_success'] = 'Actividad « <a href="{$a->link}">{$a->name}</a> » añadida. La sincronización de archivos ha comenzado.';
+$string['manual_upload_uploading'] = 'Subiendo...';
+$string['needsattention'] = 'Necesitan atención';
+$string['newmoduletype'] = 'Nuevo {$a}';
+$string['next'] = 'Siguiente';
 $string['noinstructions'] = 'Sin instrucciones para esta tarea.';
+$string['notasksinthequeue'] = 'La cola de tareas está actualmente vacía.';
+$string['notavailable'] = 'Este módulo no está disponible o no está configurado correctamente. Por favor, inténtelo de nuevo más tarde o contacte con su administrador.';
+$string['opengeneratorqueue'] = 'Abrir cola del generador';
+$string['pluginname'] = 'Generador de Contenido Dixeo';
+$string['pluginrequired'] = 'Instale el plugin {$a} para generar este tipo de actividad.';
+$string['privacy:metadata:external:courseid'] = 'El ID del curso asociado a la solicitud de generación o carga.';
+$string['privacy:metadata:external:filename'] = 'Nombres de archivos cargados que pueden enviarse para procesamiento o indexación.';
+$string['privacy:metadata:external:instructions'] = 'Instrucciones de generación o relleno introducidas por el profesor.';
+$string['privacy:metadata:external:jobid'] = 'Identificadores de trabajo remotos de Dixeo usados para seguir el procesamiento.';
+$string['privacy:metadata:external:modulename'] = 'El tipo de módulo de actividad que se genera o carga.';
+$string['privacy:metadata:externalpurpose'] = 'Las instrucciones, el contenido o nombres de archivo, el contexto de curso y módulo, y los identificadores de trabajo se envían a servicios Dixeo/IA a través de local_dixeo para generar o procesar actividades.';
+$string['privacy:metadata:queue'] = 'Filas de generación por curso: indicaciones, títulos, nombres de archivo, IDs de trabajo, errores y estado. Las filas terminales (completadas, fallidas, canceladas) se eliminan tras 90 días.';
+$string['privacy:metadata:queue:beforemod'] = 'ID opcional del módulo del curso usado como posición de inserción.';
+$string['privacy:metadata:queue:cmid'] = 'El ID del módulo del curso creado cuando finaliza la generación.';
+$string['privacy:metadata:queue:courseid'] = 'El curso propietario de la fila de la cola.';
+$string['privacy:metadata:queue:description'] = 'Descripción opcional almacenada con la fila de la cola.';
+$string['privacy:metadata:queue:instructions'] = 'Instrucciones de generación o relleno en texto libre que pueden incluir datos personales.';
+$string['privacy:metadata:queue:jobid'] = 'El identificador de trabajo de Dixeo o local de la fila de la cola.';
+$string['privacy:metadata:queue:lang'] = 'El código de idioma usado en la solicitud.';
+$string['privacy:metadata:queue:modulename'] = 'El tipo de módulo de la tarea en cola.';
+$string['privacy:metadata:queue:params'] = 'Metadatos JSON (ID del usuario remitente si se conoce, nombres de archivo, errores, indicadores de modo).';
+$string['privacy:metadata:queue:sectionnumber'] = 'La sección del curso destinada a la actividad.';
+$string['privacy:metadata:queue:status'] = 'El estado de la tarea en la cola.';
+$string['privacy:metadata:queue:timecompleted'] = 'Cuándo se completó, falló o se canceló la tarea.';
+$string['privacy:metadata:queue:timecreated'] = 'Cuándo se creó la fila de la cola.';
+$string['privacy:metadata:queue:timestarted'] = 'Cuándo comenzó el procesamiento de la tarea.';
+$string['privacy:metadata:queue:title'] = 'Un título visible de la fila de la cola (nombre de actividad o etiqueta de carga).';
+$string['privacy:notice:avoidpersonaldata'] = 'El contenido puede ser procesado por servicios Dixeo. No incluya datos personales innecesarios sobre estudiantes en las instrucciones ni en los archivos cargados.';
+$string['privacy:path:queue'] = 'Cola de generación';
+$string['processing'] = 'Procesando';
+$string['prompt_placeholder'] = 'Instrucciones de generación para Dixeo';
+$string['queue_manual_upload_label'] = 'Carga manual';
+$string['queue_processor'] = 'Procesador de Cola de Generación de Contenido Dixeo';
+$string['queued'] = 'En cola';
+$string['queuemodaltitle'] = 'Cola de Generación';
+$string['removefromdisplay'] = 'Quitar de la vista';
+$string['removefromqueue'] = 'Quitar de la cola';
 $string['retry'] = 'Reintentar';
-$string['retrygeneration'] = 'Reintentar generación';
-$string['filltask_defaulttitle'] = 'Nueva actividad';
-$string['retry_fill_notfound'] = 'No se encontró la tarea en cola para este curso.';
+$string['retry_fill_createfailed'] = 'No se pudo crear la actividad a partir del resultado del relleno.';
+$string['retry_fill_failed'] = 'El relleno del módulo no se completó.';
 $string['retry_fill_notfailed'] = 'Solo las tareas fallidas pueden reintentarse de esta forma.';
 $string['retry_fill_notfill'] = 'Este reintento solo aplica a tareas de relleno (fill).';
-$string['retry_fill_failed'] = 'El relleno del módulo no se completó.';
+$string['retry_fill_notfound'] = 'No se encontró la tarea en cola para este curso.';
 $string['retry_fill_timeout'] = 'El trabajo de relleno de IA no se completó a tiempo.';
-$string['retry_fill_createfailed'] = 'No se pudo crear la actividad a partir del resultado del relleno.';
-
-// Status strings (matching queue_service constants).
+$string['retrygeneration'] = 'Reintentar generación';
+$string['scorm_package_help'] = 'Subir un paquete SCORM (.zip)';
+$string['scorm_package_invalid'] = 'El archivo subido no es un paquete SCORM válido.';
 $string['status_0'] = 'Pendiente';
 $string['status_1'] = 'Procesando';
 $string['status_2'] = 'Completado';
 $string['status_3'] = 'Fallido';
 $string['status_4'] = 'Cancelado';
-
-// Time strings.
-$string['timecreated'] = 'Creado el: {$a}';
-$string['timestarted'] = 'Iniciado el: {$a}';
-$string['timecompleted'] = 'Completado el: {$a}';
-$string['timecancelled'] = 'Cancelado el: {$a}';
-
-// Categories.
-$string['category_content'] = 'Contenido';
-$string['category_resource'] = 'Recursos';
-$string['category_interactive'] = 'Interactivo';
-$string['category_assessment'] = 'Evaluación';
-
-// Upload modal.
-$string['manual_upload_drag'] = 'Arrastre un archivo aquí o haga clic para buscar';
-$string['manual_upload_browse'] = 'Elegir un archivo';
-$string['manual_upload_uploading'] = 'Subiendo...';
-$string['manual_upload_error_missing'] = 'El archivo es obligatorio.';
-$string['manual_upload_error_failed'] = 'No se pudo crear la actividad.';
-$string['manual_upload_error_invalid_scorm'] = 'Solo se aceptan paquetes SCORM de Articulate Storyline (.zip).';
-$string['manual_upload_error_invalid_resource'] = 'Solo se aceptan estos formatos de archivo: {$a->ragformats}.';
-$string['manual_upload_error_file_too_large'] = 'El archivo es demasiado grande. Por favor, sube un archivo menor de {$a->maxsize}.';
-$string['manual_upload_scorm_description'] = 'Solo paquetes SCORM de Articulate Storyline (.zip).';
-$string['manual_upload_resource_description'] = 'Formatos aceptados: {$a->ragformats}. (Máx. {$a->maxsize})';
-
-// Queue notifications.
+$string['success_message'] = 'Se ha añadido una nueva tarea de generación de contenido a la cola.';
+$string['success_title'] = '¡Éxito!';
+$string['task_cleanup_modulegen_queue'] = 'Limpiar entradas antiguas de la cola de generación de módulos Dixeo';
 $string['task_completed_success'] = 'Actividad « <a href="{$a->link}">{$a->name}</a> » creada.';
-$string['manual_upload_success'] = 'Actividad « <a href="{$a->link}">{$a->name}</a> » añadida. La sincronización de archivos ha comenzado.';
 $string['task_failed'] = 'Error en la generación del módulo: {$a->error}';
 $string['task_process_modulegen_queue'] = 'Procesar la cola de generación de módulos Dixeo';
-$string['queue_manual_upload_label'] = 'Carga manual';
-
-// SCORM upload.
-$string['scorm_package_help'] = 'Subir un paquete SCORM (.zip)';
-$string['scorm_package_invalid'] = 'El archivo subido no es un paquete SCORM válido.';
+$string['taskcancelerror'] = 'Se produjo un error al intentar cancelar la tarea. Por favor, inténtelo de nuevo más tarde.';
+$string['taskcancelled'] = 'La tarea se ha cancelado correctamente.';
+$string['timecancelled'] = 'Cancelado el: {$a}';
+$string['timecompleted'] = 'Completado el: {$a}';
+$string['timecreated'] = 'Creado el: {$a}';
+$string['timestarted'] = 'Iniciado el: {$a}';
+$string['viewinstructions'] = 'Ver instrucciones';

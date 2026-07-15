@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 use block_dixeo_modulegen\local\page_assets;
 
 /**
@@ -74,8 +72,10 @@ function block_dixeo_modulegen_add_button_to_teacher_toolbar(\moodle_page $page)
     }
 
     $context = \context_course::instance($page->course->id);
-    if (!has_capability('local/dixeo:generate', $context)
-            || !has_capability('moodle/course:manageactivities', $context)) {
+    if (
+        !has_capability('local/dixeo:generate', $context)
+        || !has_capability('moodle/course:manageactivities', $context)
+    ) {
         return [];
     }
 

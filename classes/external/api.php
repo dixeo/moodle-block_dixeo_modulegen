@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Unified external API for the Dixeo Module Generator block.
  *
@@ -27,11 +42,10 @@ use block_dixeo_modulegen\queue_repository;
 use block_dixeo_modulegen\queue_presenter;
 use block_dixeo_modulegen\queue_status;
 use block_dixeo_modulegen\queue_task_mode;
+use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Unified external API class for module generation.
@@ -51,7 +65,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class api extends external_api {
-
     /**
      * Validate course access and capabilities.
      *
@@ -66,6 +79,7 @@ class api extends external_api {
         global $PAGE;
         require_course_login($courseid);
         $context = \context_course::instance($courseid);
+        self::validate_context($context);
         $PAGE->set_context($context);
         require_capability('local/dixeo:generate', $context);
         require_capability('moodle/course:manageactivities', $context);
@@ -109,9 +123,7 @@ class api extends external_api {
         ];
     }
 
-    // =========================================================================
-    // submit_generation - Queue a new module generation request
-    // =========================================================================
+    // Submit generation: queue a new module generation request.
 
     /**
      * Parameters for submit_generation.
@@ -138,8 +150,8 @@ class api extends external_api {
      * @param int $courseid The course ID.
      * @param string $modulename The module type to generate.
      * @param string $instructions Instructions for the AI.
-     * @param int $sectionnumber Section number to add module to.
-     * @param int $beforemod Course module ID to insert before.
+     * @param int|null $sectionnumber Section number to add module to.
+     * @param int|null $beforemod Course module ID to insert before.
      * @param string|null $lang Language code for content.
      * @return array Result with queue_id, empty job_id, and status queued.
      */
@@ -179,12 +191,16 @@ class api extends external_api {
                 'jobid' => $result['jobid'] ?? '',
                 'status' => $result['status'],
             ];
-
         } catch (api_exception $e) {
-            return self::create_error_response($e->get_error_code(), $e->getMessage());
-
-        } catch (\Exception $e) {
-            return self::create_error_response('submission_failed', $e->getMessage());
+            return self::create_error_response(
+                $e->get_error_code(),
+                exception_message::format_for_client($e, 'error_queue_failed')
+            );
+        } catch (\Throwable $e) {
+            return self::create_error_response(
+                'submission_failed',
+                exception_message::format_for_client($e, 'error_queue_failed')
+            );
         }
     }
 
@@ -206,9 +222,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // get_queue_status - Get queue tasks and statistics for a course
-    // =========================================================================
+    // Get queue status: tasks and statistics for a course.
 
     /**
      * Parameters for get_queue_status.
@@ -291,9 +305,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // update_task - Complete, fail, or cancel a task
-    // =========================================================================
+    // Update task: complete, fail, or cancel a task.
 
     /**
      * Parameters for update_task.
@@ -306,6 +318,12 @@ class api extends external_api {
             'action' => new external_value(PARAM_ALPHA, 'Action: complete, fail, or cancel'),
             'cmid' => new external_value(PARAM_INT, 'Created module ID (for complete)', VALUE_DEFAULT, 0),
             'error' => new external_value(PARAM_RAW, 'Error message (for fail)', VALUE_DEFAULT, ''),
+            'jobid' => new external_value(
+                PARAM_TEXT,
+                'Job UUID required for complete/fail when task has a jobid',
+                VALUE_DEFAULT,
+                ''
+            ),
         ]);
     }
 
@@ -318,19 +336,22 @@ class api extends external_api {
      * @param string $action The action: complete, fail, or cancel.
      * @param int $cmid The created module ID (for complete action).
      * @param string $error The error message (for fail action).
+     * @param string $jobid Job UUID correlating to the processing task (required for complete/fail).
      * @return array Result with success status and next_task info if applicable.
      */
     public static function update_task(
         int $queueid,
         string $action,
         int $cmid = 0,
-        string $error = ''
+        string $error = '',
+        string $jobid = ''
     ): array {
         $params = self::validate_parameters(self::update_task_parameters(), [
             'queueid' => $queueid,
             'action' => $action,
             'cmid' => $cmid,
             'error' => $error,
+            'jobid' => $jobid,
         ]);
 
         // Get task to verify course access.
@@ -341,18 +362,37 @@ class api extends external_api {
 
         self::validate_course_access($task->courseid);
 
-        $nexttask = null;
-
         switch ($params['action']) {
             case 'complete':
+                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
+                if ($validationerror !== null) {
+                    return self::create_update_error_response($validationerror);
+                }
                 if ($params['cmid'] <= 0) {
                     return self::create_update_error_response('cmid required for complete action');
                 }
-                $nexttask = queue_service::complete($params['queueid'], $params['cmid']);
+                if (!self::cmid_belongs_to_course($params['cmid'], (int) $task->courseid)) {
+                    return self::create_update_error_response('cmid does not belong to the task course');
+                }
+                if (!queue_service::complete($params['queueid'], $params['cmid'])) {
+                    return self::create_update_error_response('Cannot complete this task');
+                }
                 break;
 
             case 'fail':
-                $nexttask = queue_service::fail($params['queueid'], $params['error']);
+                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
+                if ($validationerror !== null) {
+                    return self::create_update_error_response($validationerror);
+                }
+                // Do not persist client-supplied remote/API error text on the queue row.
+                if (
+                    !queue_service::fail(
+                        $params['queueid'],
+                        get_string('generationfailed', 'block_dixeo_modulegen')
+                    )
+                ) {
+                    return self::create_update_error_response('Cannot fail this task');
+                }
                 break;
 
             case 'cancel':
@@ -366,17 +406,46 @@ class api extends external_api {
                 return self::create_update_error_response('Invalid action: ' . $params['action']);
         }
 
-        $result = [
+        return [
             'success' => true,
             'message' => 'Task updated',
         ];
+    }
 
-        // Include next task info if one was started.
-        if ($nexttask) {
-            $result['next_task'] = $nexttask;
+    /**
+     * Ensure complete/fail only apply to processing tasks with a matching jobid.
+     *
+     * @param \stdClass $task Queue row.
+     * @param string $jobid Caller-supplied job UUID.
+     * @return string|null Error message, or null when valid.
+     */
+    private static function validate_complete_or_fail_transition(\stdClass $task, string $jobid): ?string {
+        if ((int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return 'Invalid task state for this action';
         }
 
-        return $result;
+        $taskjobid = trim((string) ($task->jobid ?? ''));
+        if ($taskjobid === '') {
+            return 'Task has no jobid';
+        }
+
+        if (trim($jobid) === '' || trim($jobid) !== $taskjobid) {
+            return 'jobid mismatch';
+        }
+
+        return null;
+    }
+
+    /**
+     * Check that a course module exists and belongs to the given course.
+     *
+     * @param int $cmid Course module ID.
+     * @param int $courseid Expected course ID.
+     * @return bool
+     */
+    private static function cmid_belongs_to_course(int $cmid, int $courseid): bool {
+        $cm = get_coursemodule_from_id(null, $cmid, $courseid, false, IGNORE_MISSING);
+        return $cm !== false && (int) $cm->course === $courseid;
     }
 
     /**
@@ -399,9 +468,7 @@ class api extends external_api {
         ]);
     }
 
-    // =========================================================================
-    // retry_fill_task - Retry failed fill-mode row (Dixeo fill_module + create)
-    // =========================================================================
+    // Retry fill task: retry failed fill-mode row (Dixeo fill_module + create).
 
     /**
      * Parameters for retry_fill_task.
@@ -515,6 +582,14 @@ class api extends external_api {
     /**
      * Run fill_module job, wait, create activity (used for fill retry only).
      *
+     * @param string $modulename Dixeo module type identifier.
+     * @param string $instructions Fill instructions.
+     * @param int $courseid Course id.
+     * @param int $sectionnumber Course section number.
+     * @param int|null $beforemod Insert-before cm id or null.
+     * @param string $filldisplaytitle Display title used for the fill job.
+     * @param string|null $nameoverride Optional activity name override.
+     * @param string $summaryraw Fill summary payload.
      * @return array{success: bool, cmid: int, error: string, fill_jobid: string}
      */
     private static function run_fill_retry_pipeline(
@@ -548,8 +623,8 @@ class api extends external_api {
             );
             $filljobid = (string) ($operation->jobid ?? '');
 
-            $waitResult = $jobservice->wait_for_job($operation->jobid, 'fill_module');
-            if (!$waitResult->is_completed()) {
+            $waitresult = $jobservice->wait_for_job($operation->jobid, 'fill_module');
+            if (!$waitresult->is_completed()) {
                 return [
                     'success' => false,
                     'cmid' => 0,
@@ -570,13 +645,10 @@ class api extends external_api {
             );
 
             if (empty($result['success'])) {
-                $errmsg = !empty($result['errormessage'])
-                    ? (string) $result['errormessage']
-                    : get_string('retry_fill_createfailed', 'block_dixeo_modulegen');
                 return [
                     'success' => false,
                     'cmid' => 0,
-                    'error' => $errmsg,
+                    'error' => get_string('retry_fill_createfailed', 'block_dixeo_modulegen'),
                     'fill_jobid' => $filljobid,
                 ];
             }
@@ -591,15 +663,13 @@ class api extends external_api {
             return [
                 'success' => false,
                 'cmid' => 0,
-                'error' => $e->getMessage(),
+                'error' => exception_message::format_for_client($e, 'retry_fill_failed'),
                 'fill_jobid' => $filljobid,
             ];
         }
     }
 
-    // =========================================================================
-    // delete_task - Remove a task from the queue (database)
-    // =========================================================================
+    // Delete task: remove a task from the queue (database).
 
     /**
      * Parameters for delete_task.

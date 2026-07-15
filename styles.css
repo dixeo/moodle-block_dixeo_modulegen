@@ -31,6 +31,9 @@
  * @author Pierre FACQ <pierre.facq@edunao.com>
  */
 
+/* stylelint-disable declaration-no-important --
+   Queue overlay and theme/Bootstrap collisions need !important
+   (same approach as block_dixeo_designer overrides). */
 /* ==========================================================================
    1. DESIGN TOKENS (fallbacks only; themes override by redefining these)
    ========================================================================== */
@@ -45,7 +48,7 @@
     /* Borders (theme: --border) */
     --dixeo-modulegen-border: hsl(var(--border, 214.3 31.8% 91.4%));
     --dixeo-modulegen-border-light: #e3e3e3;
-    --dixeo-modulegen-border-inactive: #dddddd;
+    --dixeo-modulegen-border-inactive: #ddd;
     --dixeo-modulegen-border-dark: #1d2125;
 
     /* Text (theme: --muted-foreground) */
@@ -302,7 +305,6 @@
     width: 35px;
     height: 35px;
     object-fit: contain;
-    user-drag: none;
     -webkit-user-drag: none;
     user-select: none;
 }
@@ -315,7 +317,6 @@
 
 .block_dixeo_modulegen .optionicon img {
     height: 30px;
-    user-drag: none;
     -webkit-user-drag: none;
     user-select: none;
 }
@@ -621,7 +622,7 @@
     --dixeo-modulegen-bg-active: #f1f1f1;
     --dixeo-modulegen-border: hsl(var(--border, 214.3 31.8% 91.4%));
     --dixeo-modulegen-border-light: #e3e3e3;
-    --dixeo-modulegen-border-inactive: #dddddd;
+    --dixeo-modulegen-border-inactive: #ddd;
     --dixeo-modulegen-border-dark: #1d2125;
     --dixeo-modulegen-text-muted: hsl(var(--muted-foreground, 215.4 16.3% 46.9%));
     --dixeo-modulegen-text: #495057;
@@ -655,6 +656,10 @@
 #manualUploadModal .modal-body {
     padding: 50px;
     background-color: var(--dixeo-modulegen-modal-body-bg);
+
+    .small {
+        font-size: 10px;
+    }
 }
 
 #generationModal #generate_button,
@@ -741,7 +746,8 @@ li.activity[data-for="cmitem"].dd-drop-down,
     --dixeo-modulegen-drop-line-style: dashed;
     /* Boost / modern themes expose --primary; fallback matches Moodle default blue */
     --dixeo-modulegen-drop-line-color: var(--primary, #0f6cbf);
-    border-bottom: var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
+    border-bottom:
+        var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
         var(--dixeo-modulegen-drop-line-color);
     margin-bottom: calc(-1 * var(--dixeo-modulegen-drop-line-width));
 }
@@ -762,7 +768,8 @@ ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop.dd-drop-down + li.a
     --dixeo-modulegen-drop-line-width: 3px;
     --dixeo-modulegen-drop-line-style: dashed;
     --dixeo-modulegen-drop-line-color: var(--primary, #0f6cbf);
-    border-top: var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
+    border-top:
+        var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
         var(--dixeo-modulegen-drop-line-color);
     margin-top: calc(-1 * var(--dixeo-modulegen-drop-line-width));
 }
@@ -796,3 +803,5 @@ ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop {
         max-width: 750px;
     }
 }
+
+/* stylelint-enable declaration-no-important */

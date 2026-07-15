@@ -5,6 +5,17 @@
     @package    block_dixeo_modulegen
     @author     Josemaria Bolanos <admin@mako.digital>
     @author     Pierre FACQ <pierre.facq@edunao.com>
+
+    Example context (json):
+    {
+        "generationtitle": "New Page",
+        "origin": "chooser",
+        "courseid": 2,
+        "sectionid": 1,
+        "config": {
+            "wwwroot": "https://example.com"
+        }
+    }
 }}
 <form id="dixeo_generator_form" method="post" class="generator-form">
     <div class="modal-header">
@@ -22,6 +33,7 @@
                 rows="4"
                 placeholder="{{#str}}prompt_placeholder, block_dixeo_modulegen{{/str}}"
                 required></textarea>
+            <p class="form-text text-muted small mb-0 mt-2">{{#str}}privacy:notice:avoidpersonaldata, block_dixeo_modulegen{{/str}}</p>
         </div>
         <input type="hidden" id="origin" name="origin" value="{{origin}}">
         <input type="hidden" id="courseid" name="courseid" value="{{courseid}}">

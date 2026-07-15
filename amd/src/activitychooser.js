@@ -279,14 +279,16 @@ define([
                 generationtitle: ''
             };
 
+            let setupDone = false;
             Templates.render('block_dixeo_modulegen/activitychooser', context)
             .then(function(html, js) {
                 const container = block.querySelector('#dixeo-module-generator');
                 if (!container) {
-                    return;
+                    return undefined;
                 }
 
                 initialized = true;
+                setupDone = true;
                 container.insertAdjacentHTML('beforeend', html);
 
                 if (js) {
@@ -300,27 +302,35 @@ define([
 
                 // Initialize job manager FIRST - it handles all job lifecycle.
                 // This must complete before other modules try to submit/poll jobs.
-                JobManager.init(course)
-                    .then(() => {
-                        GenerationNotifications.init(course);
-                        // Initialize UI modules after job manager is ready.
-                        QueueStatus.init(course, categories);
-                        AiAction.init();
-                        ManualUploadAction.init(manualUploadConfig || {});
+                return JobManager.init(course);
+            })
+            .then(function() {
+                if (!setupDone) {
+                    return undefined;
+                }
+                GenerationNotifications.init(course);
+                // Initialize UI modules after job manager is ready.
+                QueueStatus.init(course, categories);
+                AiAction.init();
+                ManualUploadAction.init(manualUploadConfig || {});
 
-                        // Trigger a custom event to notify that the chooser is ready.
-                        document.dispatchEvent(new Event('activityChooserReady'));
-                    })
-                    .catch((error) => {
-                        // Graceful degradation - still initialize UI but log warning.
-                        // eslint-disable-next-line no-console
-                        console.error('JobManager init failed:', error);
-                        GenerationNotifications.init(course);
-                        QueueStatus.init(course, categories);
-                        AiAction.init();
-                        ManualUploadAction.init(manualUploadConfig || {});
-                        document.dispatchEvent(new Event('activityChooserReady'));
-                    });
+                // Trigger a custom event to notify that the chooser is ready.
+                document.dispatchEvent(new Event('activityChooserReady'));
+                return undefined;
+            })
+            .catch(function(error) {
+                if (!setupDone) {
+                    return undefined;
+                }
+                // Graceful degradation - still initialize UI but log warning.
+                // eslint-disable-next-line no-console
+                console.error('JobManager init failed:', error);
+                GenerationNotifications.init(course);
+                QueueStatus.init(course, categories);
+                AiAction.init();
+                ManualUploadAction.init(manualUploadConfig || {});
+                document.dispatchEvent(new Event('activityChooserReady'));
+                return undefined;
             });
         }
     }

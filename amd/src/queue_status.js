@@ -111,7 +111,8 @@ define([
                     if (this.blockFooter) {
                         this.blockFooter.setAttribute('title', s);
                     }
-                });
+                    return undefined;
+                }).catch(() => undefined);
                 // Use cache from JobManager.init — avoids duplicate get_queue_status XHR.
                 this.updateQueueStatistics(false);
             }
@@ -208,7 +209,9 @@ define([
             }
 
             if (this.queueContainer && !this.queueAnimatePending) {
-                this.updateQueueList().catch(() => {});
+                this.updateQueueList().catch(() => {
+                    /* Ignored. */
+                });
             }
         },
 
@@ -312,7 +315,7 @@ define([
             this.showQueueLoading();
             await this.animateQueuePanelIn();
 
-            this.updateQueueList().catch(async (error) => {
+            this.updateQueueList().catch(async(error) => {
                 this.hideQueueLoading();
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
                 Notification.alert(errorTitle, error.message || String(error));
@@ -450,7 +453,7 @@ define([
                 ? Promise.resolve(data)
                 : JobManager.getQueueStatus(true);
 
-            return dataPromise.then(async (data) => {
+            return dataPromise.then(async(data) => {
                 const context = {tasks: []};
 
                 // Process tasks for template rendering.
@@ -497,7 +500,7 @@ define([
 
                 // Render queue without statistics (they're already in the footer).
                 if (!this.queueContainer) {
-                    return;
+                    return undefined;
                 }
 
                 const html = await Templates.render('block_dixeo_modulegen/queue', context);
@@ -527,8 +530,9 @@ define([
                 }
 
                 this.addActionListeners();
+                return undefined;
 
-            }).catch(async (error) => {
+            }).catch(async(error) => {
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
                 Notification.alert(errorTitle, error.message || String(error));
                 throw error;
@@ -739,22 +743,23 @@ define([
                         courseid: courseId
                     }
                 }])[0];
-            }).then((data) => {
+            }).then(async(data) => {
                 link.style.pointerEvents = '';
                 link.textContent = originalText;
                 if (!data || !data.success) {
                     const msg = (data && data.message) ? data.message : '';
-                    return Str.get_string('error_title', 'block_dixeo_modulegen').then((title) => {
-                        Notification.alert(title, msg || String(title));
-                    });
+                    const title = await Str.get_string('error_title', 'block_dixeo_modulegen');
+                    Notification.alert(title, msg || String(title));
+                    return undefined;
                 }
                 this.updateQueueStatistics();
                 this.updateQueueList();
-                return null;
+                return undefined;
             }).catch((error) => {
                 link.style.pointerEvents = '';
                 link.textContent = originalText;
                 Notification.exception(error);
+                return undefined;
             });
         },
 
@@ -857,7 +862,8 @@ define([
             } else {
                 Str.get_string('noinstructions', 'block_dixeo_modulegen').then((s) => {
                     tooltipEl.textContent = s;
-                });
+                    return undefined;
+                }).catch(() => undefined);
             }
 
             const rect = wrapper.getBoundingClientRect();
@@ -943,9 +949,11 @@ define([
             // Fetch via JobManager (single source of truth). Initial load uses false to avoid duplicate XHR.
             JobManager.getQueueStatus(forceRefresh).then((data) => {
                 this.renderQueueStatistics(data);
-            }).catch(async (error) => {
+                return undefined;
+            }).catch(async(error) => {
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
                 Notification.alert(errorTitle, error.message || String(error));
+                return undefined;
             });
         },
 

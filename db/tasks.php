@@ -15,22 +15,23 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details for the Dixeo Module Generator block.
+ * Scheduled tasks for block_dixeo_modulegen.
  *
  * @package    block_dixeo_modulegen
  * @copyright  2026 Edunao SAS (contact@edunao.com)
- * @author     Josemaria Bolanos <admin@mako.digital>
- * @author     Pierre FACQ <pierre.facq@edunao.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026071400;        // The current plugin version (Date: YYYYMMDDXX).
-$plugin->requires  = 2024100700;        // Requires Moodle 4.5+.
-$plugin->component = 'block_dixeo_modulegen';
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '3.1.1';
-$plugin->dependencies = [
-    'local_dixeo' => 2026070601,
+$tasks = [
+    [
+        'classname' => 'block_dixeo_modulegen\task\cleanup_modulegen_queue',
+        'blocking' => 0,
+        'minute' => '15',
+        'hour' => '3',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
 ];

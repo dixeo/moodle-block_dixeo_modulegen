@@ -5,6 +5,25 @@
     @package    block_dixeo_modulegen
     @author     Josemaria Bolanos <admin@mako.digital>
     @author     Pierre FACQ <pierre.facq@edunao.com>
+
+    Example context (json):
+    {
+        "shortname": "page",
+        "displayname": "Page",
+        "component": "mod_page",
+        "installed": true,
+        "iconurl": "https://example.com/mod/page/pix/monologo.svg",
+        "backgroundColor": "#17a2b8",
+        "sectionid": 1,
+        "options": {
+            "enabled": true,
+            "href": "#",
+            "modalTarget": "#generationModal"
+        },
+        "config": {
+            "wwwroot": "https://example.com"
+        }
+    }
 }}
 <div class="optioninfo text-center col-6 col-md-4 p-2">
     {{#options.enabled}}
@@ -20,7 +39,7 @@
         title="{{#str}}addnew, moodle, {{displayname}}{{/str}}">
     {{/options.enabled}}
     {{^options.enabled}}
-    <span class="d-flex flex-column align-items-center text-muted"
+    <div class="d-flex flex-column align-items-center text-muted"
         {{^installed}}title="{{#str}} pluginrequired, block_dixeo_modulegen, {{component}} {{/str}}"{{/installed}}
         {{#installed}}title="{{#str}} notavailable, block_dixeo_modulegen{{/str}}"{{/installed}}>
     {{/options.enabled}}
@@ -29,8 +48,8 @@
         {{/options.beta}}
         {{^options.enabled}}{{^installed}}<i class="fa fa-lock position-absolute" style="top: 16px; right: calc(50% - 20px); font-size: 12px; color: #6c757d;"></i>{{/installed}}{{/options.enabled}}
         <div class="optionicon activityiconcontainer rounded p-2 my-1" style="background-color: {{backgroundColor}};">
-            <img src="{{iconurl}}" alt="{{displayname}} icon" width="32" height="32" onerror="this.onerror=null;this.src='{{config.wwwroot}}/blocks/dixeo_modulegen/pix/monologo.svg'"/>
+            <img src="{{iconurl}}" alt="{{displayname}} icon" width="32" height="32" onerror="this.onerror=null;this.src='{{config.wwwroot}}/blocks/dixeo_modulegen/pix/monologo.svg'">
         </div>
         <span class="optionname small font-weight-bold {{#options.enabled}}text-body{{/options.enabled}}">{{displayname}}</span>
-    {{#options.enabled}}</a>{{/options.enabled}}{{^options.enabled}}</span>{{/options.enabled}}
+    {{#options.enabled}}</a>{{/options.enabled}}{{^options.enabled}}</div>{{/options.enabled}}
 </div>

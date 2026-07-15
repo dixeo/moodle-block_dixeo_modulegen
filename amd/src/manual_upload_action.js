@@ -24,6 +24,13 @@ define([
     let isModalClosingDisabled = false;
 
     /**
+     * Silently refresh queue status after a successful upload.
+     */
+    const refreshQueueSilently = () => {
+        JobManager.getQueueStatus(true).catch(() => undefined);
+    };
+
+    /**
      * @param {string} filename
      * @returns {string} Lowercase extension without dot, or empty string.
      */
@@ -540,15 +547,20 @@ define([
                 }
             };
 
+            let uploadResponse;
             fetch(uploadConfig.uploadUrl, {
                 method: 'POST',
                 body: formData,
                 credentials: 'same-origin',
             })
-                .then((response) => response.json().then((body) => ({response, body})))
-                .then(({response, body}) => {
-                    if (!response.ok || !body.success) {
-                        throw new Error(body.message || 'Upload failed');
+                .then((response) => {
+                    uploadResponse = response;
+                    return response.json();
+                })
+                .then((body) => {
+                    if (!uploadResponse.ok || !body.success) {
+                        const message = body.message || 'Upload failed';
+                        throw new Error(message);
                     }
 
                     restoreUi();
@@ -565,7 +577,7 @@ define([
                         courseid: courseid,
                     });
 
-                    JobManager.getQueueStatus(true);
+                    refreshQueueSilently();
                     document.dispatchEvent(new Event('newTaskAdded'));
 
                     CourseSectionRefresh.dispatchJobCompleted({
@@ -573,10 +585,12 @@ define([
                         sectionNumber: sectionNumber,
                         source: 'manual',
                     });
+                    return undefined;
                 })
                 .catch((error) => {
                     restoreUi();
                     showModalError(form, error.message || String(error));
+                    return undefined;
                 });
         },
     };

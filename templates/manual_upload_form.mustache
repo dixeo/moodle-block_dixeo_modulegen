@@ -3,10 +3,20 @@
 
     @template block_dixeo_modulegen/manual_upload_form
     @package    block_dixeo_modulegen
+
+    Example context (json):
+    {
+        "modaltitle": "Add SCORM package",
+        "courseid": 2,
+        "sectionid": 1,
+        "config": {
+            "wwwroot": "https://example.com"
+        }
+    }
 }}
 <form id="dixeo_manual_upload_form" method="post" class="manual-upload-form" enctype="multipart/form-data">
     <div class="modal-header">
-        <h5 class="modal-title w-100 text-center" id="manualUploadModalLabel"></h5>
+        <h5 class="modal-title w-100 text-center" id="manualUploadModalLabel">{{modaltitle}}</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="{{#str}}close, moodle{{/str}}">
             <span aria-hidden="true">&times;</span>
         </button>
@@ -43,6 +53,7 @@
                         {{#str}}manual_upload_browse, block_dixeo_modulegen{{/str}}
                     </button>
                 </div>
+                <p class="form-text text-muted small mb-0 mt-2">{{#str}}privacy:notice:avoidpersonaldata, block_dixeo_modulegen{{/str}}</p>
             </div>
         </div>
         <input type="hidden" id="manual-upload-modtype" name="modtype" value="">

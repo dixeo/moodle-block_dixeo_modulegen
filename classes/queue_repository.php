@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Repository for queue database operations.
  *
@@ -14,8 +29,6 @@
 
 namespace block_dixeo_modulegen;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Repository class for queue database operations.
  *
@@ -29,7 +42,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_repository {
-
     /** @var string Database table name for the queue. */
     public const TABLE = 'block_dixeo_modulegen_queue';
 
@@ -156,6 +168,39 @@ class queue_repository {
         global $DB;
 
         return $DB->delete_records(self::TABLE, ['id' => $id]);
+    }
+
+    /**
+     * Delete terminal queue rows (completed, failed, cancelled) older than a cutoff.
+     *
+     * Uses timecompleted when set; rows still pending or processing are never removed.
+     *
+     * @param int $cutoff Unix timestamp; rows with timecompleted older than this are deleted.
+     * @return int Number of rows deleted.
+     */
+    public static function delete_terminal_older_than(int $cutoff): int {
+        global $DB;
+
+        if ($cutoff <= 0) {
+            return 0;
+        }
+
+        $statuses = [
+            queue_status::STATUS_COMPLETED,
+            queue_status::STATUS_FAILED,
+            queue_status::STATUS_CANCELLED,
+        ];
+        [$statussql, $params] = $DB->get_in_or_equal($statuses, SQL_PARAMS_NAMED, 'st');
+        $params['cutoff'] = $cutoff;
+
+        $select = "status {$statussql} AND timecompleted > 0 AND timecompleted < :cutoff";
+        $count = $DB->count_records_select(self::TABLE, $select, $params);
+        if ($count === 0) {
+            return 0;
+        }
+
+        $DB->delete_records_select(self::TABLE, $select, $params);
+        return $count;
     }
 
     /**

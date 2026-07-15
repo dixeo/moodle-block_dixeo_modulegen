@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Service for queue business logic and state transitions.
  *
@@ -14,11 +29,10 @@
 
 namespace block_dixeo_modulegen;
 
+use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
 use local_dixeo\service\job_service;
 use local_dixeo\api\exception\api_exception;
-
-defined('MOODLE_INTERNAL') || die();
 
 /**
  * Service class for queue business logic.
@@ -36,7 +50,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_service {
-
     /**
      * Submit a generation request.
      *
@@ -93,14 +106,16 @@ class queue_service {
     /**
      * Mark a task as completed and schedule processing of the next pending task.
      *
+     * Only allowed when the task is currently PROCESSING.
+     *
      * @param int $queueid The queue record ID.
      * @param int $cmid The created course module ID.
-     * @return null Background processor handles the next task.
+     * @return bool True when the task was finalized, false otherwise.
      */
-    public static function complete(int $queueid, int $cmid): ?array {
+    public static function complete(int $queueid, int $cmid): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task) {
-            return null;
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return false;
         }
 
         self::finalize_task($task, queue_status::STATUS_COMPLETED, function ($task) use ($cmid) {
@@ -109,20 +124,22 @@ class queue_service {
 
         self::schedule_queue_processing((int) $task->courseid);
 
-        return null;
+        return true;
     }
 
     /**
      * Mark a task as failed and schedule processing of the next pending task.
      *
+     * Only allowed when the task is currently PROCESSING.
+     *
      * @param int $queueid The queue record ID.
      * @param string $error The error message.
-     * @return null Background processor handles the next task.
+     * @return bool True when the task was finalized, false otherwise.
      */
-    public static function fail(int $queueid, string $error): ?array {
+    public static function fail(int $queueid, string $error): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task) {
-            return null;
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
+            return false;
         }
 
         self::finalize_task($task, queue_status::STATUS_FAILED, function ($task) use ($error) {
@@ -131,7 +148,7 @@ class queue_service {
 
         self::schedule_queue_processing((int) $task->courseid);
 
-        return null;
+        return true;
     }
 
     /**
@@ -163,6 +180,7 @@ class queue_service {
                     (new job_service())->cancel_job($task->jobid);
                 } catch (\Exception $e) {
                     // Still mark as cancelled and start next so the queue does not get stuck.
+                    debugging('Failed to cancel Dixeo job: ' . $e->getMessage(), DEBUG_DEVELOPER);
                 }
             }
             $task->status = queue_status::STATUS_CANCELLED;
@@ -232,7 +250,7 @@ class queue_service {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
                 self::update_task_params($task, [
-                    'error' => 'Invalid queue state: fill tasks cannot be pending.',
+                    'error' => get_string('error_invalid_fill_pending', 'block_dixeo_modulegen'),
                 ]);
                 queue_repository::update($task);
                 continue;
@@ -241,7 +259,7 @@ class queue_service {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
                 self::update_task_params($task, [
-                    'error' => 'Invalid queue state: manual upload tasks cannot be pending.',
+                    'error' => get_string('error_invalid_manual_pending', 'block_dixeo_modulegen'),
                 ]);
                 queue_repository::update($task);
                 continue;
@@ -251,7 +269,9 @@ class queue_service {
             if ($userid <= 0) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => 'Missing submitter user for file sync.']);
+                self::update_task_params($task, [
+                    'error' => get_string('error_missing_submitter', 'block_dixeo_modulegen'),
+                ]);
                 queue_repository::update($task);
                 continue;
             }
@@ -261,7 +281,9 @@ class queue_service {
             } catch (\Throwable $e) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => $e->getMessage()]);
+                self::update_task_params($task, [
+                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
+                ]);
                 queue_repository::update($task);
                 continue;
             }
@@ -288,11 +310,12 @@ class queue_service {
                     'sectionnumber' => $task->sectionnumber,
                     'beforemod' => $task->beforemod,
                 ];
-
             } catch (\Exception $e) {
                 $task->status = queue_status::STATUS_FAILED;
                 $task->timecompleted = time();
-                self::update_task_params($task, ['error' => $e->getMessage()]);
+                self::update_task_params($task, [
+                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
+                ]);
                 queue_repository::update($task);
             }
         }
@@ -399,9 +422,9 @@ class queue_service {
      *
      * @param object $task The task record to finalize.
      * @param int $status The terminal status (COMPLETED or FAILED).
-     * @param callable $customizer Optional callback to apply additional changes.
+     * @param callable|null $customizer Optional callback to apply additional changes.
      */
-    private static function finalize_task(object $task, int $status, callable $customizer = null): void {
+    private static function finalize_task(object $task, int $status, ?callable $customizer = null): void {
         $task->status = $status;
         $task->timecompleted = time();
 
@@ -453,7 +476,16 @@ class queue_service {
     /**
      * Insert a completed fill log row (terminal; does not start queue processing).
      *
+     * @param int $courseid Course id.
+     * @param string $modulename Dixeo module type identifier.
+     * @param string $instructions Fill instructions submitted by the user.
+     * @param int $sectionnumber Course section number.
      * @param int|null $beforemod Insert-before cm id or null.
+     * @param int $cmid Created course module id.
+     * @param string $displaytitle Display title for the queue row.
+     * @param string $summaryraw Fill summary payload stored in params.
+     * @param string $filljobid Dixeo fill job id (generated if empty).
+     * @return int Inserted queue row id.
      */
     public static function log_fill_completed(
         int $courseid,
@@ -493,7 +525,14 @@ class queue_service {
     /**
      * Insert a completed manual-upload log row (terminal; does not start queue processing).
      *
+     * @param int $courseid Course id.
+     * @param string $modulename Dixeo module type identifier.
+     * @param int $sectionnumber Course section number.
      * @param int|null $beforemod Insert-before cm id or null.
+     * @param int $cmid Created course module id.
+     * @param string $displaytitle Display title for the queue row.
+     * @param string $filename Uploaded file name stored in params.
+     * @return int Inserted queue row id.
      */
     public static function log_manual_upload_completed(
         int $courseid,
@@ -529,6 +568,17 @@ class queue_service {
 
     /**
      * Insert a failed fill log row (retryable from modulegen UI).
+     *
+     * @param int $courseid Course id.
+     * @param string $modulename Dixeo module type identifier.
+     * @param string $instructions Fill instructions submitted by the user.
+     * @param int $sectionnumber Course section number.
+     * @param int|null $beforemod Insert-before cm id or null.
+     * @param string $displaytitle Display title for the queue row.
+     * @param string $summaryraw Fill summary payload stored in params.
+     * @param string $filljobid Dixeo fill job id (generated if empty).
+     * @param string $errormessage Failure message stored in params.
+     * @return int Inserted queue row id.
      */
     public static function log_fill_failed(
         int $courseid,
@@ -567,6 +617,11 @@ class queue_service {
 
     /**
      * Mark a failed fill row completed after successful retry.
+     *
+     * @param int $queueid Queue row id.
+     * @param int $cmid Created course module id.
+     * @param string $filljobid Dixeo fill job id to store when non-empty.
+     * @return bool True when the row was updated.
      */
     public static function complete_failed_fill_retry(int $queueid, int $cmid, string $filljobid = ''): bool {
         $task = queue_repository::get_by_id($queueid);
@@ -594,6 +649,10 @@ class queue_service {
 
     /**
      * Refresh error text on a failed fill row after a failed retry.
+     *
+     * @param int $queueid Queue row id.
+     * @param string $error Failure message to store in params.
+     * @return bool True when the row was updated.
      */
     public static function fail_fill_retry(int $queueid, string $error): bool {
         $task = queue_repository::get_by_id($queueid);
@@ -609,6 +668,12 @@ class queue_service {
     }
 
     /**
+     * Build params JSON payload for a fill queue row.
+     *
+     * @param string $title Display title.
+     * @param string $summary Fill summary text.
+     * @param string $dixeojobid Dixeo fill job id.
+     * @param string|null $error Optional failure message.
      * @return array<string, mixed>
      */
     private static function fill_params_payload(
@@ -630,6 +695,11 @@ class queue_service {
     }
 
     /**
+     * Build params JSON payload for a manual-upload queue row.
+     *
+     * @param string $title Display title.
+     * @param string $filename Uploaded file name.
+     * @param string $jobid Queue/Dixeo job id stored in params.
      * @return array<string, mixed>
      */
     private static function manual_params_payload(

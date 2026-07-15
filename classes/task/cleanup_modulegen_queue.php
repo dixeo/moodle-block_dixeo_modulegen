@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Adhoc task: ensure file sync then submit the next pending modulegen job.
+ * Scheduled task: purge terminal modulegen queue rows older than the retention period.
  *
  * @package    block_dixeo_modulegen
  * @copyright  2026 Edunao SAS (contact@edunao.com)
@@ -24,46 +24,36 @@
 
 namespace block_dixeo_modulegen\task;
 
-use block_dixeo_modulegen\queue_service;
+use block_dixeo_modulegen\queue_repository;
 
 /**
- * Processes one pending generate task for a course (sync then API submit).
+ * Deletes completed, failed, and cancelled queue rows past the retention window.
  */
-class process_modulegen_queue extends \core\task\adhoc_task {
+class cleanup_modulegen_queue extends \core\task\scheduled_task {
+    /** @var int Retention period for terminal queue rows (days). */
+    public const RETENTION_DAYS = 90;
+
     /**
      * Get the name of this task for admin UIs.
      *
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_process_modulegen_queue', 'block_dixeo_modulegen');
+        return get_string('task_cleanup_modulegen_queue', 'block_dixeo_modulegen');
     }
 
     /**
-     * Execute the adhoc task: sync files then submit the next pending job.
+     * Delete terminal queue rows older than {@see self::RETENTION_DAYS}.
      *
      * @return void
      */
     public function execute(): void {
-        $data = $this->get_custom_data();
+        $cutoff = time() - (DAYSECS * self::RETENTION_DAYS);
+        $deleted = queue_repository::delete_terminal_older_than($cutoff);
 
-        if (empty($data->courseid)) {
-            mtrace('process_modulegen_queue: No course ID provided');
-            return;
+        if ($deleted > 0) {
+            mtrace("[block_dixeo_modulegen] Deleted {$deleted} terminal queue row(s) older than "
+                . self::RETENTION_DAYS . ' days.');
         }
-
-        $courseid = (int) $data->courseid;
-        $userid = isset($data->userid) ? (int) $data->userid : 0;
-
-        mtrace("process_modulegen_queue: Processing queue for course {$courseid}");
-
-        $result = queue_service::process_next_pending($courseid, $userid);
-
-        if ($result === null) {
-            mtrace("process_modulegen_queue: No pending task started for course {$courseid}");
-            return;
-        }
-
-        mtrace("process_modulegen_queue: Started queue {$result['queueid']} job {$result['jobid']}");
     }
 }
