@@ -99,6 +99,15 @@ try {
         (int) $USER->id
     );
 
+    $queuetask = \block_dixeo_modulegen\queue_repository::get_by_id($queueid);
+    if ($queuetask) {
+        \block_dixeo_modulegen\event\manual_upload_completed::create_from_task(
+            $queuetask,
+            (int) $USER->id,
+            $cmid
+        )->trigger();
+    }
+
     echo json_encode([
         'success' => true,
         'cmid' => $cmid,

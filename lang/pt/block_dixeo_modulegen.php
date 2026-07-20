@@ -51,6 +51,16 @@ $string['error_queue_failed'] = 'Falha ao adicionar a tarefa à fila de geraçã
 $string['error_title'] = 'Ops!';
 $string['error_unexpected'] = 'Algo correu mal. Tente novamente ou contacte o administrador.';
 $string['error_unsupported_module'] = 'Tipo de módulo não suportado: {$a}';
+$string['eventfilltaskretried'] = 'Tarefa de preenchimento de módulo Dixeo repetida';
+$string['eventfilltaskretrieddesc'] = 'O utilizador com id \'{$a->userid}\' repetiu com sucesso a tarefa de preenchimento \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', cmid={$a->cmid}) no curso \'{$a->courseid}\'.';
+$string['eventmanualuploadcompleted'] = 'Carregamento manual de módulo Dixeo registado';
+$string['eventmanualuploadcompleteddesc'] = 'O utilizador com id \'{$a->userid}\' registou a tarefa de carregamento manual \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', cmid={$a->cmid}) no curso \'{$a->courseid}\'.';
+$string['eventqueuetaskcancelled'] = 'Tarefa de geração de módulo Dixeo cancelada';
+$string['eventqueuetaskcancelleddesc'] = 'O utilizador com id \'{$a->userid}\' cancelou a tarefa na fila \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') no curso \'{$a->courseid}\'.';
+$string['eventqueuetaskdeleted'] = 'Tarefa de geração de módulo Dixeo eliminada';
+$string['eventqueuetaskdeleteddesc'] = 'O utilizador com id \'{$a->userid}\' eliminou a tarefa na fila \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\') do curso \'{$a->courseid}\'.';
+$string['eventqueuetasksubmitted'] = 'Tarefa de geração de módulo Dixeo submetida';
+$string['eventqueuetasksubmitteddesc'] = 'O utilizador com id \'{$a->userid}\' colocou na fila a tarefa de geração \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\') no curso \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nova atividade';
 $string['generate'] = 'Gerar';
 $string['generation_complete'] = 'O seu conteúdo foi gerado com sucesso! Atualize a página para o ver.';

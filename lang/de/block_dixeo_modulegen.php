@@ -51,6 +51,16 @@ $string['error_queue_failed'] = 'Die Aufgabe konnte nicht zur Generierungswartes
 $string['error_title'] = 'Hoppla!';
 $string['error_unexpected'] = 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder kontaktieren Sie Ihren Administrator.';
 $string['error_unsupported_module'] = 'Nicht unterstützter Modultyp: {$a}';
+$string['eventfilltaskretried'] = 'Dixeo-Modul-Fill-Aufgabe erneut versucht';
+$string['eventfilltaskretrieddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Fill-Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', cmid={$a->cmid}) im Kurs \'{$a->courseid}\' erfolgreich wiederholt.';
+$string['eventmanualuploadcompleted'] = 'Dixeo manueller Modul-Upload protokolliert';
+$string['eventmanualuploadcompleteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die manuelle Upload-Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', cmid={$a->cmid}) im Kurs \'{$a->courseid}\' protokolliert.';
+$string['eventqueuetaskcancelled'] = 'Dixeo-Modulgenerierungsaufgabe abgebrochen';
+$string['eventqueuetaskcancelleddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', jobid=\'{$a->jobid}\') im Kurs \'{$a->courseid}\' abgebrochen.';
+$string['eventqueuetaskdeleted'] = 'Dixeo-Modulgenerierungsaufgabe gelöscht';
+$string['eventqueuetaskdeleteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\') aus dem Kurs \'{$a->courseid}\' gelöscht.';
+$string['eventqueuetasksubmitted'] = 'Dixeo-Modulgenerierungsaufgabe eingereicht';
+$string['eventqueuetasksubmitteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Modulgenerierungsaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\') im Kurs \'{$a->courseid}\' in die Warteschlange gestellt.';
 $string['filltask_defaulttitle'] = 'Neue Aktivität';
 $string['generate'] = 'Generieren';
 $string['generation_complete'] = 'Ihr Inhalt wurde erfolgreich generiert! Aktualisieren Sie die Seite, um ihn zu sehen.';
