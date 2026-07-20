@@ -32,6 +32,8 @@ require_sesskey();
 header('Content-Type: application/json');
 
 try {
+    global $USER;
+
     $modtype = required_param('modtype', PARAM_ALPHA);
     $courseid = required_param('courseid', PARAM_INT);
     $sectionnumber = optional_param('sectionnumber', 0, PARAM_INT);
@@ -93,7 +95,8 @@ try {
         $beforemod ?: null,
         $cmid,
         $activityname,
-        $filename
+        $filename,
+        (int) $USER->id
     );
 
     echo json_encode([

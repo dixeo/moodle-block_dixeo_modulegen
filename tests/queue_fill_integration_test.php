@@ -67,6 +67,7 @@ final class queue_fill_integration_test extends advanced_testcase {
         $params = json_decode($row->params, true);
         $this->assertIsArray($params);
         $this->assertSame('Summary', $params['summary'] ?? '');
+        $this->assertArrayHasKey('submittedby', $params);
         $this->assertTrue(queue_task_mode::is_fill($row->params));
     }
 
@@ -156,6 +157,7 @@ final class queue_fill_integration_test extends advanced_testcase {
         $this->assertTrue(queue_task_mode::is_manual($row->params));
         $params = json_decode($row->params, true);
         $this->assertSame('package.zip', $params['filename'] ?? '');
+        $this->assertArrayHasKey('submittedby', $params);
     }
 
     public function test_start_next_invalidates_pending_manual(): void {
