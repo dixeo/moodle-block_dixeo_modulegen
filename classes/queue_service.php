@@ -31,7 +31,6 @@ namespace block_dixeo_modulegen;
 
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
-use local_dixeo\service\job_service;
 use local_dixeo\api\exception\api_exception;
 
 /**
@@ -177,7 +176,7 @@ class queue_service {
         if ($status === queue_status::STATUS_PROCESSING) {
             if (!empty($task->jobid)) {
                 try {
-                    (new job_service())->cancel_job($task->jobid);
+                    service_factory::get_job_service()->cancel_job($task->jobid, (int) $task->courseid);
                 } catch (\Exception $e) {
                     // Still mark as cancelled and start next so the queue does not get stuck.
                     debugging('Failed to cancel Dixeo job: ' . $e->getMessage(), DEBUG_DEVELOPER);
