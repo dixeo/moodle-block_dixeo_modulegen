@@ -42,6 +42,10 @@ use block_dixeo_modulegen\queue_repository;
 use block_dixeo_modulegen\queue_presenter;
 use block_dixeo_modulegen\queue_status;
 use block_dixeo_modulegen\queue_task_mode;
+use block_dixeo_modulegen\event\fill_task_retried;
+use block_dixeo_modulegen\event\queue_task_cancelled;
+use block_dixeo_modulegen\event\queue_task_deleted;
+use block_dixeo_modulegen\event\queue_task_submitted;
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
@@ -137,7 +141,7 @@ class api extends external_api {
             'instructions' => new external_value(PARAM_RAW, 'Instructions for the AI'),
             'sectionnumber' => new external_value(PARAM_INT, 'Section number', VALUE_DEFAULT, 0),
             'beforemod' => new external_value(PARAM_INT, 'Insert before this module ID', VALUE_DEFAULT, 0),
-            'lang' => new external_value(PARAM_TEXT, 'Language code', VALUE_OPTIONAL),
+            'lang' => new external_value(PARAM_TEXT, 'Language code', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -163,6 +167,8 @@ class api extends external_api {
         ?int $beforemod = 0,
         ?string $lang = null
     ): array {
+        global $USER;
+
         // Validate parameters.
         $params = self::validate_parameters(self::submit_generation_parameters(), [
             'courseid' => $courseid,
@@ -184,6 +190,11 @@ class api extends external_api {
                 $params['beforemod'] ?: null,
                 $params['lang']
             );
+
+            $task = queue_repository::get_by_id((int) $result['queueid']);
+            if ($task) {
+                queue_task_submitted::create_from_task($task, (int) $USER->id)->trigger();
+            }
 
             return [
                 'success' => true,
@@ -346,6 +357,8 @@ class api extends external_api {
         string $error = '',
         string $jobid = ''
     ): array {
+        global $USER;
+
         $params = self::validate_parameters(self::update_task_parameters(), [
             'queueid' => $queueid,
             'action' => $action,
@@ -397,6 +410,12 @@ class api extends external_api {
 
             case 'cancel':
                 $success = queue_service::cancel($params['queueid']);
+                if ($success) {
+                    $cancelled = queue_repository::get_by_id($params['queueid']);
+                    if ($cancelled) {
+                        queue_task_cancelled::create_from_task($cancelled, (int) $USER->id)->trigger();
+                    }
+                }
                 return [
                     'success' => $success,
                     'message' => $success ? 'Task cancelled' : 'Cannot cancel this task',
@@ -490,6 +509,8 @@ class api extends external_api {
      * @return array success, message, cmid
      */
     public static function retry_fill_task(int $queueid, int $courseid): array {
+        global $USER;
+
         $params = self::validate_parameters(self::retry_fill_task_parameters(), [
             'queueid' => $queueid,
             'courseid' => $courseid,
@@ -546,6 +567,10 @@ class api extends external_api {
                 (int) $out['cmid'],
                 (string) ($out['fill_jobid'] ?? '')
             );
+            $updated = queue_repository::get_by_id($params['queueid']);
+            if ($updated) {
+                fill_task_retried::create_from_task($updated, (int) $USER->id, (int) $out['cmid'])->trigger();
+            }
             return [
                 'success' => true,
                 'message' => '',
@@ -689,6 +714,8 @@ class api extends external_api {
      * @return array Result with success and message.
      */
     public static function delete_task(int $queueid): array {
+        global $USER;
+
         $params = self::validate_parameters(self::delete_task_parameters(), [
             'queueid' => $queueid,
         ]);
@@ -701,6 +728,10 @@ class api extends external_api {
         self::validate_course_access($task->courseid);
 
         $success = queue_service::delete($params['queueid']);
+
+        if ($success) {
+            queue_task_deleted::create_from_task($task, (int) $USER->id)->trigger();
+        }
 
         return [
             'success' => $success,

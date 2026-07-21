@@ -51,6 +51,16 @@ $string['error_queue_failed'] = 'Échec de l\'ajout de la tâche à la file d\'a
 $string['error_title'] = 'Oups !';
 $string['error_unexpected'] = 'Une erreur s\'est produite. Veuillez réessayer ou contacter votre administrateur.';
 $string['error_unsupported_module'] = 'Type de module non pris en charge : {$a}';
+$string['eventfilltaskretried'] = 'Tâche de remplissage de module Dixeo réessayée';
+$string['eventfilltaskretrieddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a réessayé avec succès la tâche de remplissage \'{$a->queueid}\' (type de module \'{$a->modulename}\', cmid={$a->cmid}) dans le cours \'{$a->courseid}\'.';
+$string['eventmanualuploadcompleted'] = 'Téléversement manuel de module Dixeo enregistré';
+$string['eventmanualuploadcompleteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a enregistré la tâche de téléversement manuel \'{$a->queueid}\' (type de module \'{$a->modulename}\', cmid={$a->cmid}) dans le cours \'{$a->courseid}\'.';
+$string['eventqueuetaskcancelled'] = 'Tâche de génération de module Dixeo annulée';
+$string['eventqueuetaskcancelleddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a annulé la tâche de file \'{$a->queueid}\' (type de module \'{$a->modulename}\', jobid=\'{$a->jobid}\') dans le cours \'{$a->courseid}\'.';
+$string['eventqueuetaskdeleted'] = 'Tâche de génération de module Dixeo supprimée';
+$string['eventqueuetaskdeleteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a supprimé la tâche de file \'{$a->queueid}\' (type de module \'{$a->modulename}\') du cours \'{$a->courseid}\'.';
+$string['eventqueuetasksubmitted'] = 'Tâche de génération de module Dixeo soumise';
+$string['eventqueuetasksubmitteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a mis en file la tâche de génération \'{$a->queueid}\' (type de module \'{$a->modulename}\') dans le cours \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nouvelle activité';
 $string['generate'] = 'Générer';
 $string['generation_complete'] = 'Votre contenu a été généré avec succès ! Actualisez la page pour le voir.';

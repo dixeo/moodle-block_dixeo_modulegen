@@ -51,6 +51,16 @@ $string['error_queue_failed'] = 'Impossibile aggiungere l\'attività alla coda d
 $string['error_title'] = 'Ops!';
 $string['error_unexpected'] = 'Qualcosa è andato storto. Riprova o contatta l\'amministratore.';
 $string['error_unsupported_module'] = 'Tipo di modulo non supportato: {$a}';
+$string['eventfilltaskretried'] = 'Attività di fill modulo Dixeo ripetuta';
+$string['eventfilltaskretrieddesc'] = 'L\'utente con id \'{$a->userid}\' ha ripetuto con successo l\'attività di fill \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', cmid={$a->cmid}) nel corso \'{$a->courseid}\'.';
+$string['eventmanualuploadcompleted'] = 'Caricamento manuale modulo Dixeo registrato';
+$string['eventmanualuploadcompleteddesc'] = 'L\'utente con id \'{$a->userid}\' ha registrato l\'attività di caricamento manuale \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', cmid={$a->cmid}) nel corso \'{$a->courseid}\'.';
+$string['eventqueuetaskcancelled'] = 'Attività di generazione modulo Dixeo annullata';
+$string['eventqueuetaskcancelleddesc'] = 'L\'utente con id \'{$a->userid}\' ha annullato l\'attività in coda \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') nel corso \'{$a->courseid}\'.';
+$string['eventqueuetaskdeleted'] = 'Attività di generazione modulo Dixeo eliminata';
+$string['eventqueuetaskdeleteddesc'] = 'L\'utente con id \'{$a->userid}\' ha eliminato l\'attività in coda \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\') dal corso \'{$a->courseid}\'.';
+$string['eventqueuetasksubmitted'] = 'Attività di generazione modulo Dixeo inviata';
+$string['eventqueuetasksubmitteddesc'] = 'L\'utente con id \'{$a->userid}\' ha accodato l\'attività di generazione \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\') nel corso \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nuova attività';
 $string['generate'] = 'Genera';
 $string['generation_complete'] = 'Il tuo contenuto è stato generato con successo! Aggiorna la pagina per visualizzarlo.';

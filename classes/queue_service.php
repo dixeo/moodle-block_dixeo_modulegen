@@ -31,7 +31,6 @@ namespace block_dixeo_modulegen;
 
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
-use local_dixeo\service\job_service;
 use local_dixeo\api\exception\api_exception;
 
 /**
@@ -177,7 +176,7 @@ class queue_service {
         if ($status === queue_status::STATUS_PROCESSING) {
             if (!empty($task->jobid)) {
                 try {
-                    (new job_service())->cancel_job($task->jobid);
+                    service_factory::get_job_service()->cancel_job($task->jobid, (int) $task->courseid);
                 } catch (\Exception $e) {
                     // Still mark as cancelled and start next so the queue does not get stuck.
                     debugging('Failed to cancel Dixeo job: ' . $e->getMessage(), DEBUG_DEVELOPER);
@@ -485,6 +484,7 @@ class queue_service {
      * @param string $displaytitle Display title for the queue row.
      * @param string $summaryraw Fill summary payload stored in params.
      * @param string $filljobid Dixeo fill job id (generated if empty).
+     * @param int|null $submittedby User who submitted the fill request (defaults to current user).
      * @return int Inserted queue row id.
      */
     public static function log_fill_completed(
@@ -496,7 +496,8 @@ class queue_service {
         int $cmid,
         string $displaytitle,
         string $summaryraw,
-        string $filljobid
+        string $filljobid,
+        ?int $submittedby = null
     ): int {
         $lang = current_language();
         $record = queue_repository::create_base_record(
@@ -517,7 +518,8 @@ class queue_service {
             $displaytitle,
             $summaryraw,
             $jobid,
-            null
+            null,
+            self::resolve_submittedby_for_logging($submittedby)
         ));
         return queue_repository::insert($record);
     }
@@ -532,6 +534,7 @@ class queue_service {
      * @param int $cmid Created course module id.
      * @param string $displaytitle Display title for the queue row.
      * @param string $filename Uploaded file name stored in params.
+     * @param int|null $submittedby User who uploaded the file (defaults to current user).
      * @return int Inserted queue row id.
      */
     public static function log_manual_upload_completed(
@@ -541,7 +544,8 @@ class queue_service {
         ?int $beforemod,
         int $cmid,
         string $displaytitle,
-        string $filename
+        string $filename,
+        ?int $submittedby = null
     ): int {
         $lang = current_language();
         $record = queue_repository::create_base_record(
@@ -561,7 +565,8 @@ class queue_service {
         $record->params = json_encode(self::manual_params_payload(
             $displaytitle,
             $filename,
-            $jobid
+            $jobid,
+            self::resolve_submittedby_for_logging($submittedby)
         ));
         return queue_repository::insert($record);
     }
@@ -578,6 +583,7 @@ class queue_service {
      * @param string $summaryraw Fill summary payload stored in params.
      * @param string $filljobid Dixeo fill job id (generated if empty).
      * @param string $errormessage Failure message stored in params.
+     * @param int|null $submittedby User who submitted the fill request (defaults to current user).
      * @return int Inserted queue row id.
      */
     public static function log_fill_failed(
@@ -589,7 +595,8 @@ class queue_service {
         string $displaytitle,
         string $summaryraw,
         string $filljobid,
-        string $errormessage
+        string $errormessage,
+        ?int $submittedby = null
     ): int {
         $lang = current_language();
         $record = queue_repository::create_base_record(
@@ -610,7 +617,8 @@ class queue_service {
             $displaytitle,
             $summaryraw,
             $filljobid !== '' ? $filljobid : $jobid,
-            $errormessage
+            $errormessage,
+            self::resolve_submittedby_for_logging($submittedby)
         ));
         return queue_repository::insert($record);
     }
@@ -674,13 +682,15 @@ class queue_service {
      * @param string $summary Fill summary text.
      * @param string $dixeojobid Dixeo fill job id.
      * @param string|null $error Optional failure message.
+     * @param int $submittedby User who submitted the fill request (0 = omit from payload).
      * @return array<string, mixed>
      */
     private static function fill_params_payload(
         string $title,
         string $summary,
         string $dixeojobid,
-        ?string $error
+        ?string $error,
+        int $submittedby = 0
     ): array {
         $p = [
             'mode' => queue_task_mode::MODE_FILL,
@@ -688,6 +698,9 @@ class queue_service {
             'summary' => $summary,
             'dixeo_jobid' => $dixeojobid,
         ];
+        if ($submittedby > 0) {
+            $p['submittedby'] = $submittedby;
+        }
         if ($error !== null && $error !== '') {
             $p['error'] = $error;
         }
@@ -700,18 +713,40 @@ class queue_service {
      * @param string $title Display title.
      * @param string $filename Uploaded file name.
      * @param string $jobid Queue/Dixeo job id stored in params.
+     * @param int $submittedby User who uploaded the file.
      * @return array<string, mixed>
      */
     private static function manual_params_payload(
         string $title,
         string $filename,
-        string $jobid
+        string $jobid,
+        int $submittedby = 0
     ): array {
-        return [
+        $p = [
             'mode' => queue_task_mode::MODE_MANUAL,
             'title' => $title,
             'filename' => $filename,
             'dixeo_jobid' => $jobid,
         ];
+        if ($submittedby > 0) {
+            $p['submittedby'] = $submittedby;
+        }
+        return $p;
+    }
+
+    /**
+     * Resolve submitter user id for fill/manual log rows.
+     *
+     * @param int|null $submittedby Explicit submitter when provided.
+     * @return int
+     */
+    private static function resolve_submittedby_for_logging(?int $submittedby): int {
+        global $USER;
+
+        if ($submittedby !== null && $submittedby > 0) {
+            return $submittedby;
+        }
+
+        return (int) ($USER->id ?? 0);
     }
 }

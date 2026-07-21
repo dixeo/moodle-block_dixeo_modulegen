@@ -32,6 +32,8 @@ require_sesskey();
 header('Content-Type: application/json');
 
 try {
+    global $USER;
+
     $modtype = required_param('modtype', PARAM_ALPHA);
     $courseid = required_param('courseid', PARAM_INT);
     $sectionnumber = optional_param('sectionnumber', 0, PARAM_INT);
@@ -93,8 +95,18 @@ try {
         $beforemod ?: null,
         $cmid,
         $activityname,
-        $filename
+        $filename,
+        (int) $USER->id
     );
+
+    $queuetask = \block_dixeo_modulegen\queue_repository::get_by_id($queueid);
+    if ($queuetask) {
+        \block_dixeo_modulegen\event\manual_upload_completed::create_from_task(
+            $queuetask,
+            (int) $USER->id,
+            $cmid
+        )->trigger();
+    }
 
     echo json_encode([
         'success' => true,
