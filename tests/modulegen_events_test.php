@@ -28,7 +28,9 @@ namespace block_dixeo_modulegen;
 use block_dixeo_modulegen\event\fill_task_retried;
 use block_dixeo_modulegen\event\manual_upload_completed;
 use block_dixeo_modulegen\event\queue_task_cancelled;
+use block_dixeo_modulegen\event\queue_task_completed;
 use block_dixeo_modulegen\event\queue_task_deleted;
+use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\event\queue_task_submitted;
 use block_dixeo_modulegen\external\api;
 
@@ -37,6 +39,8 @@ use block_dixeo_modulegen\external\api;
  *
  * @covers \block_dixeo_modulegen\event\queue_task_submitted
  * @covers \block_dixeo_modulegen\event\queue_task_cancelled
+ * @covers \block_dixeo_modulegen\event\queue_task_completed
+ * @covers \block_dixeo_modulegen\event\queue_task_failed
  * @covers \block_dixeo_modulegen\event\queue_task_deleted
  * @covers \block_dixeo_modulegen\event\fill_task_retried
  * @covers \block_dixeo_modulegen\event\manual_upload_completed
@@ -74,6 +78,80 @@ final class modulegen_events_test extends \advanced_testcase {
         $user = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
         $this->setUser($user);
         return [$course, $user];
+    }
+
+    /**
+     * Insert a processing generate queue row for complete/fail API tests.
+     *
+     * @param \stdClass $course Course record.
+     * @param int $userid Acting user id stored in params.
+     * @param string $jobid Remote job UUID.
+     * @return int Queue row id.
+     */
+    private function create_processing_generate_task(\stdClass $course, int $userid, string $jobid): int {
+        $record = queue_repository::create_base_record(
+            (int) $course->id,
+            'page',
+            'Secret generate prompt',
+            1,
+            null,
+            'en'
+        );
+        $record->status = queue_status::STATUS_PROCESSING;
+        $record->jobid = $jobid;
+        $record->timestarted = time();
+        $record->params = json_encode([
+            'jobid' => $jobid,
+            'submittedby' => $userid,
+        ]);
+
+        return queue_repository::insert($record);
+    }
+
+    public function test_complete_emits_queue_task_completed(): void {
+        [$course, $user] = $this->create_course_and_editor();
+        $jobid = \core\uuid::generate();
+        $queueid = $this->create_processing_generate_task($course, (int) $user->id, $jobid);
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+
+        $sink = $this->redirectEvents();
+        $result = api::update_task($queueid, 'complete', (int) $page->cmid, '', $jobid);
+
+        $this->assertTrue($result['success']);
+        $completed = array_values(array_filter(
+            $sink->get_events(),
+            static fn($event) => $event instanceof queue_task_completed
+        ));
+        $this->assertCount(1, $completed);
+        $this->assertEquals($queueid, (int) $completed[0]->objectid);
+        $this->assertEquals((int) $course->id, (int) $completed[0]->courseid);
+        $this->assertEquals((int) $user->id, (int) $completed[0]->userid);
+        $this->assertSame($jobid, $completed[0]->other['jobid']);
+        $this->assertSame((int) $page->cmid, (int) $completed[0]->other['cmid']);
+        $this->assert_minimal_queue_other($completed[0]);
+        $this->assertStringNotContainsString('Secret', $completed[0]->get_description());
+    }
+
+    public function test_fail_emits_queue_task_failed(): void {
+        [$course, $user] = $this->create_course_and_editor();
+        $jobid = \core\uuid::generate();
+        $queueid = $this->create_processing_generate_task($course, (int) $user->id, $jobid);
+
+        $sink = $this->redirectEvents();
+        $result = api::update_task($queueid, 'fail', 0, 'Remote API secret error', $jobid);
+
+        $this->assertTrue($result['success']);
+        $failed = array_values(array_filter(
+            $sink->get_events(),
+            static fn($event) => $event instanceof queue_task_failed
+        ));
+        $this->assertCount(1, $failed);
+        $this->assertEquals($queueid, (int) $failed[0]->objectid);
+        $this->assertEquals((int) $course->id, (int) $failed[0]->courseid);
+        $this->assertEquals((int) $user->id, (int) $failed[0]->userid);
+        $this->assertSame($jobid, $failed[0]->other['jobid']);
+        $this->assert_minimal_queue_other($failed[0]);
+        $this->assertStringNotContainsString('Remote API secret', $failed[0]->get_description());
     }
 
     public function test_submit_generation_emits_queue_task_submitted(): void {

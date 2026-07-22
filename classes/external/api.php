@@ -44,7 +44,9 @@ use block_dixeo_modulegen\queue_status;
 use block_dixeo_modulegen\queue_task_mode;
 use block_dixeo_modulegen\event\fill_task_retried;
 use block_dixeo_modulegen\event\queue_task_cancelled;
+use block_dixeo_modulegen\event\queue_task_completed;
 use block_dixeo_modulegen\event\queue_task_deleted;
+use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\event\queue_task_submitted;
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
@@ -390,6 +392,14 @@ class api extends external_api {
                 if (!queue_service::complete($params['queueid'], $params['cmid'])) {
                     return self::create_update_error_response('Cannot complete this task');
                 }
+                $completed = queue_repository::get_by_id($params['queueid']);
+                if ($completed) {
+                    queue_task_completed::create_from_task(
+                        $completed,
+                        (int) $USER->id,
+                        $params['cmid']
+                    )->trigger();
+                }
                 break;
 
             case 'fail':
@@ -405,6 +415,10 @@ class api extends external_api {
                     )
                 ) {
                     return self::create_update_error_response('Cannot fail this task');
+                }
+                $failed = queue_repository::get_by_id($params['queueid']);
+                if ($failed) {
+                    queue_task_failed::create_from_task($failed, (int) $USER->id)->trigger();
                 }
                 break;
 
@@ -658,7 +672,7 @@ class api extends external_api {
                 ];
             }
 
-            $introoverride = $summaryraw !== '' ? format_text($summaryraw, FORMAT_PLAIN) : null;
+            $introoverride = $summaryraw !== '' ? format_text($summaryraw, FORMAT_PLAIN) : '';
 
             $result = create_module_from_job::execute(
                 $operation->jobid,

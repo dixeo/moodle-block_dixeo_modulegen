@@ -57,8 +57,12 @@ $string['eventmanualuploadcompleted'] = 'Caricamento manuale modulo Dixeo regist
 $string['eventmanualuploadcompleteddesc'] = 'L\'utente con id \'{$a->userid}\' ha registrato l\'attività di caricamento manuale \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', cmid={$a->cmid}) nel corso \'{$a->courseid}\'.';
 $string['eventqueuetaskcancelled'] = 'Attività di generazione modulo Dixeo annullata';
 $string['eventqueuetaskcancelleddesc'] = 'L\'utente con id \'{$a->userid}\' ha annullato l\'attività in coda \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') nel corso \'{$a->courseid}\'.';
+$string['eventqueuetaskcompleted'] = 'Attività di generazione modulo Dixeo completata';
+$string['eventqueuetaskcompleteddesc'] = 'L\'utente con id \'{$a->userid}\' ha completato l\'attività in coda \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\', jobid=\'{$a->jobid}\', cmid={$a->cmid}) nel corso \'{$a->courseid}\'.';
 $string['eventqueuetaskdeleted'] = 'Attività di generazione modulo Dixeo eliminata';
 $string['eventqueuetaskdeleteddesc'] = 'L\'utente con id \'{$a->userid}\' ha eliminato l\'attività in coda \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\') dal corso \'{$a->courseid}\'.';
+$string['eventqueuetaskfailed'] = 'Attività di generazione modulo Dixeo non riuscita';
+$string['eventqueuetaskfaileddesc'] = 'L\'utente con id \'{$a->userid}\' ha contrassegnato l\'attività in coda \'{$a->queueid}\' come non riuscita (tipo modulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') nel corso \'{$a->courseid}\'.';
 $string['eventqueuetasksubmitted'] = 'Attività di generazione modulo Dixeo inviata';
 $string['eventqueuetasksubmitteddesc'] = 'L\'utente con id \'{$a->userid}\' ha accodato l\'attività di generazione \'{$a->queueid}\' (tipo modulo \'{$a->modulename}\') nel corso \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nuova attività';

@@ -57,8 +57,12 @@ $string['eventmanualuploadcompleted'] = 'Téléversement manuel de module Dixeo 
 $string['eventmanualuploadcompleteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a enregistré la tâche de téléversement manuel \'{$a->queueid}\' (type de module \'{$a->modulename}\', cmid={$a->cmid}) dans le cours \'{$a->courseid}\'.';
 $string['eventqueuetaskcancelled'] = 'Tâche de génération de module Dixeo annulée';
 $string['eventqueuetaskcancelleddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a annulé la tâche de file \'{$a->queueid}\' (type de module \'{$a->modulename}\', jobid=\'{$a->jobid}\') dans le cours \'{$a->courseid}\'.';
+$string['eventqueuetaskcompleted'] = 'Tâche de génération de module Dixeo terminée';
+$string['eventqueuetaskcompleteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a terminé la tâche de file \'{$a->queueid}\' (type de module \'{$a->modulename}\', jobid=\'{$a->jobid}\', cmid={$a->cmid}) dans le cours \'{$a->courseid}\'.';
 $string['eventqueuetaskdeleted'] = 'Tâche de génération de module Dixeo supprimée';
 $string['eventqueuetaskdeleteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a supprimé la tâche de file \'{$a->queueid}\' (type de module \'{$a->modulename}\') du cours \'{$a->courseid}\'.';
+$string['eventqueuetaskfailed'] = 'Tâche de génération de module Dixeo échouée';
+$string['eventqueuetaskfaileddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a marqué la tâche de file \'{$a->queueid}\' comme échouée (type de module \'{$a->modulename}\', jobid=\'{$a->jobid}\') dans le cours \'{$a->courseid}\'.';
 $string['eventqueuetasksubmitted'] = 'Tâche de génération de module Dixeo soumise';
 $string['eventqueuetasksubmitteddesc'] = 'L\'utilisateur avec l\'id \'{$a->userid}\' a mis en file la tâche de génération \'{$a->queueid}\' (type de module \'{$a->modulename}\') dans le cours \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nouvelle activité';

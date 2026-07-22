@@ -57,8 +57,12 @@ $string['eventmanualuploadcompleted'] = 'Carga manual de módulo Dixeo registrad
 $string['eventmanualuploadcompleteddesc'] = 'El usuario con id \'{$a->userid}\' registró la tarea de carga manual \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', cmid={$a->cmid}) en el curso \'{$a->courseid}\'.';
 $string['eventqueuetaskcancelled'] = 'Tarea de generación de módulo Dixeo cancelada';
 $string['eventqueuetaskcancelleddesc'] = 'El usuario con id \'{$a->userid}\' canceló la tarea de cola \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') en el curso \'{$a->courseid}\'.';
+$string['eventqueuetaskcompleted'] = 'Tarea de generación de módulo Dixeo completada';
+$string['eventqueuetaskcompleteddesc'] = 'El usuario con id \'{$a->userid}\' completó la tarea de cola \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\', jobid=\'{$a->jobid}\', cmid={$a->cmid}) en el curso \'{$a->courseid}\'.';
 $string['eventqueuetaskdeleted'] = 'Tarea de generación de módulo Dixeo eliminada';
 $string['eventqueuetaskdeleteddesc'] = 'El usuario con id \'{$a->userid}\' eliminó la tarea de cola \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\') del curso \'{$a->courseid}\'.';
+$string['eventqueuetaskfailed'] = 'Tarea de generación de módulo Dixeo fallida';
+$string['eventqueuetaskfaileddesc'] = 'El usuario con id \'{$a->userid}\' marcó la tarea de cola \'{$a->queueid}\' como fallida (tipo de módulo \'{$a->modulename}\', jobid=\'{$a->jobid}\') en el curso \'{$a->courseid}\'.';
 $string['eventqueuetasksubmitted'] = 'Tarea de generación de módulo Dixeo enviada';
 $string['eventqueuetasksubmitteddesc'] = 'El usuario con id \'{$a->userid}\' encoló la tarea de generación \'{$a->queueid}\' (tipo de módulo \'{$a->modulename}\') en el curso \'{$a->courseid}\'.';
 $string['filltask_defaulttitle'] = 'Nueva actividad';

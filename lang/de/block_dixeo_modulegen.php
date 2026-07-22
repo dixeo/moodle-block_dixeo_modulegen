@@ -57,8 +57,12 @@ $string['eventmanualuploadcompleted'] = 'Dixeo manueller Modul-Upload protokolli
 $string['eventmanualuploadcompleteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die manuelle Upload-Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', cmid={$a->cmid}) im Kurs \'{$a->courseid}\' protokolliert.';
 $string['eventqueuetaskcancelled'] = 'Dixeo-Modulgenerierungsaufgabe abgebrochen';
 $string['eventqueuetaskcancelleddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', jobid=\'{$a->jobid}\') im Kurs \'{$a->courseid}\' abgebrochen.';
+$string['eventqueuetaskcompleted'] = 'Dixeo-Modulgenerierungsaufgabe abgeschlossen';
+$string['eventqueuetaskcompleteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\', jobid=\'{$a->jobid}\', cmid={$a->cmid}) im Kurs \'{$a->courseid}\' abgeschlossen.';
 $string['eventqueuetaskdeleted'] = 'Dixeo-Modulgenerierungsaufgabe gelöscht';
 $string['eventqueuetaskdeleteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\') aus dem Kurs \'{$a->courseid}\' gelöscht.';
+$string['eventqueuetaskfailed'] = 'Dixeo-Modulgenerierungsaufgabe fehlgeschlagen';
+$string['eventqueuetaskfaileddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Warteschlangenaufgabe \'{$a->queueid}\' als fehlgeschlagen markiert (Modultyp \'{$a->modulename}\', jobid=\'{$a->jobid}\') im Kurs \'{$a->courseid}\'.';
 $string['eventqueuetasksubmitted'] = 'Dixeo-Modulgenerierungsaufgabe eingereicht';
 $string['eventqueuetasksubmitteddesc'] = 'Der Benutzer mit der ID \'{$a->userid}\' hat die Modulgenerierungsaufgabe \'{$a->queueid}\' (Modultyp \'{$a->modulename}\') im Kurs \'{$a->courseid}\' in die Warteschlange gestellt.';
 $string['filltask_defaulttitle'] = 'Neue Aktivität';
