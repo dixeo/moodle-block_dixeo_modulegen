@@ -26,11 +26,11 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026072100;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2026072200;        // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires  = 2024100700;        // Requires Moodle 4.5+.
 $plugin->component = 'block_dixeo_modulegen';
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '3.2.2';
+$plugin->release   = '3.2.3';
 $plugin->dependencies = [
-    'local_dixeo' => 2026072100,
+    'local_dixeo' => 2026072200,
 ];
