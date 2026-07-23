@@ -41,7 +41,9 @@ class exception_message {
      * @return string
      */
     public static function format_for_client(\Throwable $e, string $fallbackkey = 'error_unexpected'): string {
-        debugging(get_class($e) . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        if (self::should_log_exception($e)) {
+            debugging(get_class($e) . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
 
         if ($e instanceof \moodle_exception && !($e instanceof api_exception)) {
             return $e->getMessage();
@@ -58,12 +60,27 @@ class exception_message {
      * @return string
      */
     public static function format_for_queue(\Throwable $e, string $fallbackkey = 'generationfailed'): string {
-        debugging(get_class($e) . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        if (self::should_log_exception($e)) {
+            debugging(get_class($e) . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
 
         if ($e instanceof \moodle_exception && !($e instanceof api_exception)) {
             return clean_param($e->getMessage(), PARAM_TEXT);
         }
 
         return get_string($fallbackkey, 'block_dixeo_modulegen');
+    }
+
+    /**
+     * Whether an exception should emit developer debugging output.
+     *
+     * Expected API and Moodle operational failures are surfaced to users/queue rows
+     * without polluting cron logs.
+     *
+     * @param \Throwable $e Caught exception.
+     * @return bool
+     */
+    private static function should_log_exception(\Throwable $e): bool {
+        return !($e instanceof \moodle_exception);
     }
 }

@@ -133,7 +133,6 @@ final class queue_processor_test extends advanced_testcase {
         $queueid = queue_repository::insert($record);
 
         $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
-        $this->assertDebuggingCalled(null, DEBUG_DEVELOPER);
 
         $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
         $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
