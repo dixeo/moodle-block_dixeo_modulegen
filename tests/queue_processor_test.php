@@ -116,6 +116,7 @@ final class queue_processor_test extends advanced_testcase {
         service_factory::set_test_file_sync_service($syncmock);
 
         $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
         $modulemock->expects($this->never())->method('submit_generate_job_for_course');
         service_factory::set_test_module_generation_service($modulemock);
 
@@ -154,6 +155,7 @@ final class queue_processor_test extends advanced_testcase {
 
         $jobid = '11111111-2222-4333-8444-555555555555';
         $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
         $modulemock->expects($this->once())
             ->method('submit_generate_job_for_course')
             ->willReturn(operation_result::pending($jobid));
