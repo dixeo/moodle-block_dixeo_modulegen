@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'Invalid queue state: fill tasks cannot 
 $string['error_invalid_manual_pending'] = 'Invalid queue state: manual upload tasks cannot be pending.';
 $string['error_missing_submitter'] = 'Missing submitter user for file sync.';
 $string['error_queue_failed'] = 'Failed to add task to the generation queue.';
+$string['error_required_elements'] = 'Required elements not found.';
 $string['error_title'] = 'Oops!';
 $string['error_unexpected'] = 'Something went wrong. Please try again or contact your administrator.';
 $string['error_unsupported_module'] = 'Unsupported module type: {$a}';

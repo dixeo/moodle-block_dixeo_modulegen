@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'Estado de cola no válido: las tareas d
 $string['error_invalid_manual_pending'] = 'Estado de cola no válido: las cargas manuales no pueden estar pendientes.';
 $string['error_missing_submitter'] = 'Falta el usuario remitente para la sincronización de archivos.';
 $string['error_queue_failed'] = 'Error al añadir la tarea a la cola de generación.';
+$string['error_required_elements'] = 'No se encontraron los elementos requeridos.';
 $string['error_title'] = '¡Vaya!';
 $string['error_unexpected'] = 'Algo salió mal. Inténtelo de nuevo o contacte con el administrador.';
 $string['error_unsupported_module'] = 'Tipo de módulo no compatible: {$a}';

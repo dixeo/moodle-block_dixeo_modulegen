@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'Stato coda non valido: le attività fil
 $string['error_invalid_manual_pending'] = 'Stato coda non valido: i caricamenti manuali non possono essere in sospeso.';
 $string['error_missing_submitter'] = 'Utente mittente mancante per la sincronizzazione dei file.';
 $string['error_queue_failed'] = 'Impossibile aggiungere l\'attività alla coda di generazione.';
+$string['error_required_elements'] = 'Elementi richiesti non trovati.';
 $string['error_title'] = 'Ops!';
 $string['error_unexpected'] = 'Qualcosa è andato storto. Riprova o contatta l\'amministratore.';
 $string['error_unsupported_module'] = 'Tipo di modulo non supportato: {$a}';

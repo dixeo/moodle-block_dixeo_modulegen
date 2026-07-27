@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'Ungültiger Warteschlangenstatus: Fill-
 $string['error_invalid_manual_pending'] = 'Ungültiger Warteschlangenstatus: manuelle Uploads dürfen nicht ausstehend sein.';
 $string['error_missing_submitter'] = 'Fehlender einreichender Benutzer für die Dateisynchronisierung.';
 $string['error_queue_failed'] = 'Die Aufgabe konnte nicht zur Generierungswarteschlange hinzugefügt werden.';
+$string['error_required_elements'] = 'Erforderliche Elemente wurden nicht gefunden.';
 $string['error_title'] = 'Hoppla!';
 $string['error_unexpected'] = 'Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder kontaktieren Sie Ihren Administrator.';
 $string['error_unsupported_module'] = 'Nicht unterstützter Modultyp: {$a}';

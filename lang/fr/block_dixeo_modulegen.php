@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'État de file invalide : les tâches de
 $string['error_invalid_manual_pending'] = 'État de file invalide : les téléversements manuels ne peuvent pas être en attente.';
 $string['error_missing_submitter'] = 'Utilisateur soumissionnaire manquant pour la synchronisation des fichiers.';
 $string['error_queue_failed'] = 'Échec de l\'ajout de la tâche à la file d\'attente de génération.';
+$string['error_required_elements'] = 'Éléments requis introuvables.';
 $string['error_title'] = 'Oups !';
 $string['error_unexpected'] = 'Une erreur s\'est produite. Veuillez réessayer ou contacter votre administrateur.';
 $string['error_unsupported_module'] = 'Type de module non pris en charge : {$a}';

@@ -233,7 +233,7 @@ define([
          * @param {Event} event - The submit event.
          * @param {HTMLFormElement} form - The form element.
          */
-        handleGenerationForm: function(event, form) {
+        handleGenerationForm: async function(event, form) {
             event.preventDefault();
 
             const closeButton = form.querySelector('.close');
@@ -242,7 +242,8 @@ define([
             const retryTaskIdInput = form.querySelector('input[name="retry_task_id"]');
 
             if (!generateButton || !instructionsTextarea) {
-                Notification.exception({message: 'Required elements not found.'});
+                const message = await Str.get_string('error_required_elements', 'block_dixeo_modulegen');
+                Notification.exception({message});
                 return;
             }
 

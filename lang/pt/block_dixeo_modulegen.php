@@ -48,6 +48,7 @@ $string['error_invalid_fill_pending'] = 'Estado de fila inválido: as tarefas de
 $string['error_invalid_manual_pending'] = 'Estado de fila inválido: os carregamentos manuais não podem estar pendentes.';
 $string['error_missing_submitter'] = 'Falta o utilizador remetente para a sincronização de ficheiros.';
 $string['error_queue_failed'] = 'Falha ao adicionar a tarefa à fila de geração.';
+$string['error_required_elements'] = 'Elementos obrigatórios não encontrados.';
 $string['error_title'] = 'Ops!';
 $string['error_unexpected'] = 'Algo correu mal. Tente novamente ou contacte o administrador.';
 $string['error_unsupported_module'] = 'Tipo de módulo não suportado: {$a}';
