@@ -97,7 +97,6 @@ class page_assets {
 
         $path = $page->url->get_path();
         if (str_contains($path, '/course/view.php') || str_contains($path, '/course/section.php')) {
-            $page->requires->css('/blocks/dixeo_modulegen/styles.css');
             $page->requires->js_call_amd(
                 'block_dixeo_modulegen/activitychooser',
                 'init',
