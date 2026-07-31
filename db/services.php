@@ -67,6 +67,16 @@ $functions = [
         'capabilities' => 'moodle/course:manageactivities',
     ],
 
+    // Atomically create the module for a completed generate job (idempotent).
+    'block_dixeo_modulegen_create_module_for_task' => [
+        'classname' => 'block_dixeo_modulegen\external\api',
+        'methodname' => 'create_module_for_task',
+        'description' => 'Create the Moodle module for a completed generate job, exactly once per queue row',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'moodle/course:manageactivities',
+    ],
+
     'block_dixeo_modulegen_retry_fill_task' => [
         'classname' => 'block_dixeo_modulegen\external\api',
         'methodname' => 'retry_fill_task',

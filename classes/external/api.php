@@ -21,6 +21,7 @@
  * - submit_generation: Queue a new module generation
  * - get_queue_status: Get tasks and stats for a course
  * - update_task: Complete, fail, or cancel a task
+ * - create_module_for_task: Idempotently create a module for a completed job
  * - retry_fill_task: Retry a failed fill-mode queue row
  *
  * @package    block_dixeo_modulegen
@@ -498,6 +499,124 @@ class api extends external_api {
                 'sectionnumber' => new external_value(PARAM_INT, 'Section number', VALUE_OPTIONAL),
                 'beforemod' => new external_value(PARAM_INT, 'Insert before module', VALUE_OPTIONAL),
             ], 'Next task that was started', VALUE_OPTIONAL),
+        ]);
+    }
+
+    // Create module for task: atomically create the module for a PROCESSING row.
+
+    /**
+     * Parameters for create_module_for_task.
+     *
+     * @return external_function_parameters
+     */
+    public static function create_module_for_task_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'queueid' => new external_value(PARAM_INT, 'Queue record ID'),
+        ]);
+    }
+
+    /**
+     * Create the Moodle module for a completed generate job, exactly once.
+     *
+     * Multiple clients (tabs, pages) may poll the same PROCESSING row and all
+     * request creation when the remote job completes. This method serialises
+     * creation with a lock and re-checks the row state under it, so only the
+     * first caller creates the module; later callers get the existing cmid.
+     *
+     * @param int $queueid The queue record ID.
+     * @return array success, cmid, alreadycreated, message
+     */
+    public static function create_module_for_task(int $queueid): array {
+        $params = self::validate_parameters(self::create_module_for_task_parameters(), [
+            'queueid' => $queueid,
+        ]);
+
+        $task = queue_repository::get_by_id($params['queueid']);
+        if (!$task) {
+            return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => 'Task not found'];
+        }
+
+        self::validate_course_access((int) $task->courseid);
+
+        $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
+        $lock = $lockfactory->get_lock('createtask_' . $params['queueid'], 60);
+        if (!$lock) {
+            return [
+                'success' => false,
+                'cmid' => 0,
+                'alreadycreated' => false,
+                'message' => 'Module creation is already in progress',
+            ];
+        }
+
+        try {
+            // Re-read under the lock: another caller may have finished meanwhile.
+            $task = queue_repository::get_by_id($params['queueid']);
+            if (!$task) {
+                return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => 'Task not found'];
+            }
+
+            if ((int) $task->status === queue_status::STATUS_COMPLETED && !empty($task->cmid)) {
+                return [
+                    'success' => true,
+                    'cmid' => (int) $task->cmid,
+                    'alreadycreated' => true,
+                    'message' => '',
+                ];
+            }
+
+            if ((int) $task->status !== queue_status::STATUS_PROCESSING || empty($task->jobid)) {
+                return [
+                    'success' => false,
+                    'cmid' => 0,
+                    'alreadycreated' => false,
+                    'message' => 'Task is not awaiting module creation',
+                ];
+            }
+
+            $result = create_module_from_job::execute(
+                (string) $task->jobid,
+                (int) $task->courseid,
+                (int) ($task->sectionnumber ?? 0),
+                !empty($task->beforemod) ? (int) $task->beforemod : null
+            );
+
+            if (empty($result['success']) || empty($result['cmid'])) {
+                if (!empty($result['errormessage'])) {
+                    debugging(
+                        'create_module_for_task failed: ' . (string) $result['errormessage'],
+                        DEBUG_DEVELOPER
+                    );
+                }
+                $errmsg = get_string('generationfailed', 'block_dixeo_modulegen');
+                queue_service::fail($params['queueid'], $errmsg);
+                return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
+            }
+
+            queue_service::complete($params['queueid'], (int) $result['cmid']);
+
+            return [
+                'success' => true,
+                'cmid' => (int) $result['cmid'],
+                'alreadycreated' => false,
+                'message' => '',
+            ];
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Return values for create_module_for_task.
+     *
+     * @return external_single_structure
+     */
+    public static function create_module_for_task_returns(): external_single_structure {
+        return new external_single_structure([
+            'success' => new external_value(PARAM_BOOL, 'Whether the module exists for this task'),
+            'cmid' => new external_value(PARAM_INT, 'Created course module id (0 on failure)'),
+            'alreadycreated' => new external_value(PARAM_BOOL, 'True if another caller already created the module'),
+            'message' => new external_value(PARAM_RAW, 'Error message or empty', VALUE_DEFAULT, ''),
         ]);
     }
 

@@ -258,32 +258,25 @@ define([
     /**
      * Create the module from a completed job.
      *
-     * @param {string} jobId - The completed job UUID.
+     * The server endpoint is idempotent: it re-checks the queue row under a
+     * lock, creates the module only if it has not been created yet, and marks
+     * the row complete/failed itself. Concurrent callers (other tabs, pages)
+     * get the already-created cmid back instead of creating a duplicate.
+     *
      * @param {number} queueId - The queue record ID.
-     * @param {Object} args - The original submission arguments.
      * @returns {Promise<{cmid: number}>} Resolves with the created module ID.
      */
-    const createModuleFromJob = (jobId, queueId, args) => {
-        let createdCmid = 0;
+    const createModuleFromJob = (queueId) => {
         return Ajax.call([{
-            methodname: 'local_dixeo_create_module_from_job',
-            args: {
-                jobid: jobId,
-                courseid: args.courseid,
-                sectionnumber: args.sectionnumber,
-                beforemod: args.beforemod || 0
-            }
+            methodname: 'block_dixeo_modulegen_create_module_for_task',
+            args: {queueid: queueId}
         }])[0].then((result) => {
             if (!result.success) {
-                const errorMsg = result.errormessage || 'Failed to create module';
-                updateTask(queueId, 'fail', 0, errorMsg, jobId);
-                throw new Error(errorMsg);
+                const message = result.message || 'Failed to create module';
+                throw new Error(message);
             }
-
-            // Mark task complete on server before resolving, so queue list refresh sees updated status.
-            createdCmid = result.cmid;
-            return updateTask(queueId, 'complete', result.cmid, '', jobId);
-        }).then(() => ({cmid: createdCmid}));
+            return {cmid: result.cmid};
+        });
     };
 
     /**
@@ -322,8 +315,14 @@ define([
             }
 
             if (status.status === 'completed') {
+                // Guard against overlapping polls in this tab (e.g. a visibility
+                // re-poll firing while a create request is already in flight).
+                if (job.status === 'creating') {
+                    return;
+                }
+                job.status = 'creating';
                 try {
-                    const result = await createModuleFromJob(job.jobId, queueId, job.args);
+                    const result = await createModuleFromJob(queueId);
                     job.status = 'completed';
                     dispatchCompletionEvent(queueId, job, result.cmid, job.args.sectionnumber);
                     activeJobs.delete(queueId);
