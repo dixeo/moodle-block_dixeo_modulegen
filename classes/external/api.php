@@ -643,7 +643,8 @@ class api extends external_api {
     ): array {
         global $USER;
 
-        $moduleservice = service_factory::get_module_generation_service();
+        $moduleservice = service_factory::get_module_generation_service()
+            ->set_component('block_dixeo_modulegen');
         $jobservice = service_factory::get_job_service();
         $filljobid = '';
         try {

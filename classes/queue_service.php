@@ -452,12 +452,14 @@ class queue_service {
         int $courseid,
         ?int $sectionnumber
     ): object {
-        return service_factory::get_module_generation_service()->submit_generate_job_for_course(
-            $modulename,
-            $instructions,
-            $courseid,
-            $sectionnumber
-        );
+        return service_factory::get_module_generation_service()
+            ->set_component('block_dixeo_modulegen')
+            ->submit_generate_job_for_course(
+                $modulename,
+                $instructions,
+                $courseid,
+                $sectionnumber
+            );
     }
 
     /**
