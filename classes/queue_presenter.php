@@ -81,6 +81,10 @@ class queue_presenter {
             $task->title = $dbtitle;
         }
 
+        // Strip markup so PARAM_TEXT return validation cannot fail the whole queue
+        // when a live activity name still contains tags from an older generate.
+        $task->title = clean_param((string) ($task->title ?? ''), PARAM_TEXT);
+
         // Display title: use resolved or DB title when available, otherwise "New {MODULETYPE}".
         // For variants that share their Moodle plugin (all H5P types → mod_h5pactivity),
         // prefix the title with the variant label so the queue distinguishes them — the
@@ -93,6 +97,7 @@ class queue_presenter {
                 ? $task->title
                 : get_string('newmoduletype', 'block_dixeo_modulegen', $label);
         }
+        $task->displaytitle = clean_param((string) $task->displaytitle, PARAM_TEXT);
 
         // Short completion date for completed tasks (e.g. "Completed on 19 Jan 2026, 14:25").
         $task->completedonshort = '';
