@@ -55,8 +55,75 @@ define([
     };
 
     /**
+     * Escape plain text for an HTML attribute or text node context.
+     *
+     * @param {string} text
+     * @returns {string}
+     */
+    const escapeHtml = (text) => {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
+
+    /**
+     * Accept only same-origin Moodle activity view URLs.
+     *
+     * @param {string} url
+     * @returns {string|null} Sanitized absolute URL, or null if rejected.
+     */
+    const sanitizeActivityLink = (url) => {
+        if (!url || typeof url !== 'string') {
+            return null;
+        }
+        try {
+            const root = new URL(M.cfg.wwwroot);
+            const parsed = new URL(url, root);
+            if (parsed.origin !== root.origin) {
+                return null;
+            }
+            if (parsed.username || parsed.password) {
+                return null;
+            }
+            if (!/^\/mod\/[a-z][a-z0-9_]*\/view\.php$/i.test(parsed.pathname)) {
+                return null;
+            }
+            const id = parsed.searchParams.get('id');
+            if (!id || !/^\d+$/.test(id)) {
+                return null;
+            }
+            // Rebuild to drop unexpected query params / fragments.
+            return root.origin + parsed.pathname + '?id=' + id;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    /**
+     * Build escaped params for success strings that embed an activity link.
+     *
+     * @param {string} name
+     * @param {string} link
+     * @returns {{link: string, name: string}|null} Null when the link is not safe.
+     */
+    const buildSuccessParams = (name, link) => {
+        const safeLink = sanitizeActivityLink(link);
+        if (!safeLink || !name) {
+            return null;
+        }
+        return {
+            // Escape for href="..." and text-node contexts inside the lang string HTML.
+            link: escapeHtml(safeLink),
+            name: escapeHtml(String(name)),
+        };
+    };
+
+    /**
      * @param {string} type success|error
-     * @param {string} message HTML message.
+     * @param {string} message Pre-cleaned HTML message.
      */
     const showNotification = (type, message) => {
         Notification.addNotification({
@@ -66,13 +133,16 @@ define([
     };
 
     /**
-     * @param {string} stringKey Lang string key.
-     * @param {Object} params String params.
+     * Resolve a lang string with already-escaped params, then show a toast.
+     *
+     * @param {string} type success|error
+     * @param {string} stringKey
+     * @param {Object|string} params
      * @returns {Promise<void>}
      */
-    const showSuccessFromString = (stringKey, params) => {
+    const showFromString = (type, stringKey, params) => {
         return Str.get_string(stringKey, 'block_dixeo_modulegen', params).then((message) => {
-            showNotification('success', message);
+            showNotification(type, message);
             return undefined;
         }).catch(() => {
             // Lang string missing or fetch failed — skip silently.
@@ -96,16 +166,15 @@ define([
             return;
         }
 
-        const name = detail.displaytitle || detail.modulename || '';
-        const link = detail.link || '';
-        if (!link || !name) {
+        const params = buildSuccessParams(
+            detail.displaytitle || detail.modulename || '',
+            detail.link || ''
+        );
+        if (!params) {
             return;
         }
 
-        showSuccessFromString('task_completed_success', {
-            link: link,
-            name: name,
-        });
+        showFromString('success', 'task_completed_success', params);
     };
 
     /**
@@ -121,13 +190,8 @@ define([
             return;
         }
 
-        const error = detail.error || '';
-        Str.get_string('task_failed', 'block_dixeo_modulegen', {error: error}).then((message) => {
-            showNotification('error', message);
-            return undefined;
-        }).catch(() => {
-            // Lang string missing or fetch failed — skip silently.
-            return undefined;
+        showFromString('error', 'task_failed', {
+            error: escapeHtml(String(detail.error || '')),
         });
     };
 
@@ -163,22 +227,23 @@ define([
             if (!shouldNotify(payload)) {
                 return Promise.resolve();
             }
-            return showSuccessFromString('manual_upload_success', {
-                link: payload.link || '',
-                name: payload.name || '',
-            });
+            const params = buildSuccessParams(payload.name || '', payload.link || '');
+            if (!params) {
+                return Promise.resolve();
+            }
+            return showFromString('success', 'manual_upload_success', params);
         },
 
         /**
          * Error toast for manual upload or validation failures.
          *
-         * @param {string} message Error message.
+         * @param {string} message Error message (treated as plain text).
          */
         showError: function(message) {
-            if (!message) {
+            if (message === null || message === undefined || message === '') {
                 return;
             }
-            showNotification('error', message);
+            showNotification('error', escapeHtml(String(message)));
         },
     };
 });

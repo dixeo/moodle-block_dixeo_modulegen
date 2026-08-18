@@ -176,7 +176,11 @@ class queue_service {
         if ($status === queue_status::STATUS_PROCESSING) {
             if (!empty($task->jobid)) {
                 try {
-                    service_factory::get_job_service()->cancel_job($task->jobid, (int) $task->courseid);
+                    service_factory::get_job_service()->cancel_job(
+                        $task->jobid,
+                        (int) $task->courseid,
+                        (int) ($task->userid ?? 0)
+                    );
                 } catch (\Exception $e) {
                     // Still mark as cancelled and start next so the queue does not get stuck.
                     debugging('Failed to cancel Dixeo job: ' . $e->getMessage(), DEBUG_DEVELOPER);
