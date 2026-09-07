@@ -45,6 +45,7 @@ $functions = [
         'type' => 'read',
         'ajax' => true,
         'capabilities' => 'moodle/course:manageactivities',
+        'readonlysession' => true,
     ],
 
     // Update a task (complete, fail, or cancel).
