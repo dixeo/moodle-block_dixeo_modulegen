@@ -183,6 +183,141 @@ final class queue_processor_test extends advanced_testcase {
         $this->assertSame($jobid, $row->jobid);
     }
 
+    public function test_process_next_pending_claims_row_before_api_submit(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $userid = (int) get_admin()->id;
+
+        $record = queue_repository::create_base_record(
+            (int) $course->id,
+            'page',
+            'Instructions',
+            1,
+            null,
+            'en'
+        );
+        $record->status = queue_status::STATUS_PENDING;
+        $record->params = json_encode(['submittedby' => $userid]);
+        $queueid = queue_repository::insert($record);
+
+        $syncmock = $this->createMock(file_sync_service::class);
+        $syncmock->expects($this->once())->method('ensure_enabled_and_synchronized');
+        service_factory::set_test_file_sync_service($syncmock);
+
+        $jobid = '11111111-2222-4333-8444-555555555555';
+        $observed = [];
+        $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
+        $modulemock->expects($this->once())
+            ->method('submit_generate_job_for_course')
+            ->willReturnCallback(function () use (&$observed, $queueid, $jobid): operation_result {
+                global $DB;
+                $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+                $observed['status'] = (int) $row->status;
+                $observed['jobid'] = (string) $row->jobid;
+                $observed['timestarted'] = (int) $row->timestarted;
+                return operation_result::pending($jobid);
+            });
+        service_factory::set_test_module_generation_service($modulemock);
+
+        $started = queue_service::process_next_pending((int) $course->id, $userid);
+
+        // The row must already be claimed when the API is called, with no job id yet.
+        $this->assertSame(queue_status::STATUS_PROCESSING, $observed['status']);
+        $this->assertSame('', $observed['jobid']);
+        $this->assertGreaterThan(0, $observed['timestarted']);
+
+        $this->assertIsArray($started);
+        $this->assertSame($jobid, $started['jobid']);
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+        $this->assertSame($jobid, $row->jobid);
+    }
+
+    public function test_process_next_pending_marks_failed_when_api_fails(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $userid = (int) get_admin()->id;
+
+        $syncmock = $this->createMock(file_sync_service::class);
+        $syncmock->expects($this->once())->method('ensure_enabled_and_synchronized');
+        service_factory::set_test_file_sync_service($syncmock);
+
+        $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
+        $modulemock->expects($this->once())
+            ->method('submit_generate_job_for_course')
+            ->willThrowException(new \moodle_exception('error_queue_failed', 'block_dixeo_modulegen'));
+        service_factory::set_test_module_generation_service($modulemock);
+
+        $record = queue_repository::create_base_record(
+            (int) $course->id,
+            'page',
+            'Instructions',
+            1,
+            null,
+            'en'
+        );
+        $record->status = queue_status::STATUS_PENDING;
+        $record->params = json_encode(['submittedby' => $userid]);
+        $queueid = queue_repository::insert($record);
+
+        $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
+        $this->assertSame('', $row->jobid);
+        $params = json_decode($row->params, true);
+        $this->assertNotEmpty($params['error'] ?? '');
+    }
+
+    public function test_process_next_pending_returns_null_when_course_lock_is_held(): void {
+        global $CFG, $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $userid = (int) get_admin()->id;
+
+        // Row locks are never stacked within a process, unlike the DB-native factories.
+        $CFG->lock_factory = '\core\lock\db_record_lock_factory';
+
+        $syncmock = $this->createMock(file_sync_service::class);
+        $syncmock->expects($this->never())->method('ensure_enabled_and_synchronized');
+        service_factory::set_test_file_sync_service($syncmock);
+
+        $record = queue_repository::create_base_record(
+            (int) $course->id,
+            'page',
+            'Instructions',
+            1,
+            null,
+            'en'
+        );
+        $record->status = queue_status::STATUS_PENDING;
+        $record->params = json_encode(['submittedby' => $userid]);
+        $queueid = queue_repository::insert($record);
+
+        $lock = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen')
+            ->get_lock('course_' . (int) $course->id, 0);
+        $this->assertNotFalse($lock);
+
+        try {
+            $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+        } finally {
+            $lock->release();
+        }
+
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_PENDING, (int) $row->status);
+        $this->assertSame(0, (int) $row->timestarted);
+    }
+
     public function test_process_next_pending_skips_when_already_processing(): void {
         global $DB;
 

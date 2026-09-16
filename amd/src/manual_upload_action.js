@@ -430,11 +430,11 @@ define([
                 return;
             }
 
-            const sectionNumber = button.getAttribute('data-section-number') ?? '0';
+            const sectionId = button.getAttribute('data-section-id') ?? '0';
             const beforeMod = button.getAttribute('data-before-mod') ?? '0';
 
             const modtypeInput = form.querySelector('#manual-upload-modtype');
-            const sectionInput = form.querySelector('#manual-upload-sectionnumber');
+            const sectionInput = form.querySelector('#manual-upload-sectionid');
             const beforeModInput = form.querySelector('#manual-upload-beforemod');
             const fileInput = form.querySelector('#manual-upload-file');
             const descriptionEl = form.querySelector('#manual-upload-description');
@@ -444,7 +444,7 @@ define([
                 modtypeInput.value = typeConfig.modtype;
             }
             if (sectionInput) {
-                sectionInput.value = sectionNumber;
+                sectionInput.value = sectionId;
             }
             if (beforeModInput) {
                 beforeModInput.value = beforeMod;
@@ -527,12 +527,14 @@ define([
                 closeButton.style.pointerEvents = 'none';
             }
 
+            const beforeModValue = form.querySelector('#manual-upload-beforemod').value;
+
             const formData = new FormData();
             formData.append('sesskey', uploadConfig.sesskey);
             formData.append('modtype', form.querySelector('#manual-upload-modtype').value);
             formData.append('courseid', form.querySelector('#manual-upload-courseid').value);
-            formData.append('sectionnumber', form.querySelector('#manual-upload-sectionnumber').value);
-            formData.append('beforemod', form.querySelector('#manual-upload-beforemod').value);
+            formData.append('sectionid', form.querySelector('#manual-upload-sectionid').value);
+            formData.append('beforemod', beforeModValue);
             formData.append('file', fileInput.files[0]);
 
             const restoreUi = () => {
@@ -567,7 +569,6 @@ define([
                     resetForm(form);
                     $(form.closest('.modal')).modal('hide');
 
-                    const sectionNumber = parseInt(form.querySelector('#manual-upload-sectionnumber').value, 10);
                     const cmid = body.cmid ? parseInt(body.cmid, 10) : 0;
                     const courseid = body.courseid ? parseInt(body.courseid, 10) : 0;
 
@@ -582,7 +583,9 @@ define([
 
                     CourseSectionRefresh.dispatchJobCompleted({
                         cmid: cmid,
-                        sectionNumber: sectionNumber,
+                        sectionid: body.sectionid ? parseInt(body.sectionid, 10) : 0,
+                        sectionnumber: body.sectionnumber ? parseInt(body.sectionnumber, 10) : 0,
+                        beforemod: parseInt(beforeModValue, 10) || 0,
                         source: 'manual',
                     });
                     return undefined;

@@ -61,11 +61,26 @@ class page_assets {
      * @return bool
      */
     public static function is_course_content_page(\moodle_page $page): bool {
-        $path = $page->url->get_path();
-        if (str_contains($path, '/course/view.php') || str_contains($path, '/course/section.php')) {
+        if (self::is_course_view_page($page)) {
             return true;
         }
+        $path = $page->url->get_path();
         return str_contains($path, '/mod/') && str_contains($path, '/view.php');
+    }
+
+    /**
+     * Whether the page shows course content the generator can add to: core's
+     * course and section pages, or any page a format declares as a course
+     * view (pagetype course-view-*).
+     *
+     * @param \moodle_page $page
+     * @return bool
+     */
+    public static function is_course_view_page(\moodle_page $page): bool {
+        $path = $page->url->get_path();
+        return str_contains($path, '/course/view.php')
+            || str_contains($path, '/course/section.php')
+            || str_starts_with((string) $page->pagetype, 'course-view');
     }
 
     /**
@@ -95,8 +110,7 @@ class page_assets {
             return;
         }
 
-        $path = $page->url->get_path();
-        if (str_contains($path, '/course/view.php') || str_contains($path, '/course/section.php')) {
+        if (self::is_course_view_page($page)) {
             $page->requires->js_call_amd(
                 'block_dixeo_modulegen/activitychooser',
                 'init',

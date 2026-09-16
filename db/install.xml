@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="blocks/dixeo_modulegen/db" VERSION="20251030" COMMENT="XMLDB file for Moodle blocks/dixeo_modulegen"
+<XMLDB PATH="blocks/dixeo_modulegen/db" VERSION="20260908" COMMENT="XMLDB file for Moodle blocks/dixeo_modulegen"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -12,7 +12,7 @@
         <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="instructions" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="sectionnumber" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="sectionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Target course_sections id; the section number is resolved when the module is created"/>
         <FIELD NAME="beforemod" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="lang" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>

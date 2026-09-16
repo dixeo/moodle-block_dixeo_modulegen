@@ -66,8 +66,8 @@ define([
             // Listen for job completion to refresh course section.
             document.addEventListener('job-completed', (event) => {
                 const detail = event.detail;
-                if (detail && typeof detail.sectionNumber !== 'undefined') {
-                    CourseSectionRefresh.refreshCourseSection(detail.sectionNumber);
+                if (detail && typeof detail.sectionnumber !== 'undefined') {
+                    CourseSectionRefresh.refreshCourseSection(detail.sectionnumber);
                 }
             });
         },
@@ -80,7 +80,7 @@ define([
          * @param {Element|null} els.titleElement
          * @param {HTMLInputElement|null} els.beforeModInput
          * @param {HTMLInputElement|null} els.modulenameInput
-         * @param {HTMLInputElement|null} els.sectionnumberInput
+         * @param {HTMLInputElement|null} els.sectionidInput
          * @param {HTMLInputElement|null} els.courseidInput
          * @param {HTMLInputElement|null} els.retryTaskIdInput
          * @param {HTMLTextAreaElement|null} els.instructionsTextarea
@@ -99,8 +99,8 @@ define([
             if (els.modulenameInput) {
                 els.modulenameInput.value = ctx.modulename || '';
             }
-            if (els.sectionnumberInput) {
-                els.sectionnumberInput.value = ctx.sectionnumber || '0';
+            if (els.sectionidInput) {
+                els.sectionidInput.value = ctx.sectionid || '0';
             }
             if (els.courseidInput) {
                 els.courseidInput.value = ctx.courseid || '';
@@ -135,7 +135,7 @@ define([
             if (button) {
                 const modalTitle = button.getAttribute('data-modal-title');
                 const moduleName = button.getAttribute('data-module-name');
-                const sectionNumber = button.getAttribute('data-section-number') ?? 0;
+                const sectionId = button.getAttribute('data-section-id') ?? 0;
                 const beforeMod = button.getAttribute('data-before-mod');
 
                 if (els.titleElement) {
@@ -147,8 +147,8 @@ define([
                 if (els.modulenameInput) {
                     els.modulenameInput.value = moduleName;
                 }
-                if (els.sectionnumberInput) {
-                    els.sectionnumberInput.value = sectionNumber;
+                if (els.sectionidInput) {
+                    els.sectionidInput.value = sectionId;
                 }
             }
 
@@ -183,7 +183,7 @@ define([
                 titleElement: generationModal.querySelector('.modal-title'),
                 beforeModInput: generationModal.querySelector('input[name="beforemod"]'),
                 modulenameInput: generationModal.querySelector('input[name="modulename"]'),
-                sectionnumberInput: generationModal.querySelector('input[name="sectionnumber"]'),
+                sectionidInput: generationModal.querySelector('input[name="sectionid"]'),
                 courseidInput: generationModal.querySelector('input[name="courseid"]'),
                 retryTaskIdInput: generationModal.querySelector('input[name="retry_task_id"]'),
                 instructionsTextarea: generationModal.querySelector('#instructions'),
@@ -261,7 +261,7 @@ define([
                 courseid: parseInt(form.courseid.value, 10),
                 modulename: form.modulename.value,
                 instructions: form.instructions.value,
-                sectionnumber: parseInt(form.sectionnumber.value, 10),
+                sectionid: parseInt(form.sectionid.value, 10),
                 beforemod: parseInt(form.beforemod.value, 10),
             };
 
@@ -323,12 +323,10 @@ define([
             if (closeButton) {
                 closeButton.classList.remove('disabled');
                 closeButton.style.pointerEvents = 'auto';
-                if (closeModal) {
-                    const span = closeButton.querySelector('span');
-                    if (span) {
-                        span.click();
-                    }
-                }
+            }
+
+            if (closeModal) {
+                $(form.closest('.modal')).modal('hide');
             }
         },
 

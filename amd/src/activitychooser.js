@@ -42,18 +42,23 @@ define([
         return !!document.querySelector('[data-for="section"] ul[data-for="cmlist"]');
     }
 
-    /** @type {HTMLElement|null} Drop target currently showing drop highlight classes (avoids scanning each dragover). */
+    /** @type {HTMLElement|null} Drop target currently flagged (avoids scanning each dragover). */
     let highlightedGenerationDropTarget = null;
+    /** @type {string} Insertion point resolved on the last dragover, replayed on drop. */
+    let pendingBeforeMod = '';
+    /** @type {HTMLElement|null} Insertion bar drawn while dragging over an activity. */
+    let dropMarker = null;
 
     const CHOOSER_MODAL_OPTION =
-        '.optionscontainer .optioninfo a[data-target="#generationModal"], ' +
-        '.optionscontainer .optioninfo a[data-target="#manualUploadModal"]';
-    /** Legacy Moodle-style name + block-specific hook for theme/format overrides without .course-content. */
-    const DROP_HIGHLIGHT_CLASSES = ['dd-drop-down', 'dixeo-modulegen-drop-target'];
-    /** Injected before the first cm in each section list; insert-before = first cm id. */
-    const SECTION_LEAD_DROP = 'section-lead-drop';
-    const SELECTOR_SECTION_LEAD_DROP = '[data-dixeo-modulegen="' + SECTION_LEAD_DROP + '"]';
-    const SCOPED_SECTION_LEAD_DROP = ':scope > ' + SELECTOR_SECTION_LEAD_DROP;
+        '.optionscontainer .optioninfo a[data-bs-target="#generationModal"], ' +
+        '.optionscontainer .optioninfo a[data-bs-target="#manualUploadModal"]';
+    const CM_ITEM = 'li.activity[data-for="cmitem"]';
+    /** Block-specific hook for theme/format overrides; deliberately unstyled by default. */
+    const DROP_TARGET_CLASS = 'dixeo-modulegen-drop-target';
+    /** DataTransfer type that marks a drag started from the catalogue. */
+    const DRAG_MIME = 'application/x-dixeo-modulegen';
+    const DROP_MARKER_CLASS = 'dixeo-modulegen-drop-marker';
+    const DROP_MARKER_THICKNESS = 4;
     /** Use capture so we run before core course DragDrop, which often stops propagation on activities. */
     const USE_CAPTURE = true;
 
@@ -120,7 +125,8 @@ define([
                 options: {
                     href: '#',
                     enabled: installed && moduleType.supported !== false,
-                    beta: false
+                    beta: false,
+                    modalTarget: '#generationModal'
                 }
             };
 
@@ -361,16 +367,16 @@ define([
     }
 
     /**
-     * Find the last section number on the page.
+     * Find the id of the last section on the page.
      *
-     * @returns {string} The last section number as string, or '0' if none found.
+     * @returns {string} The last course_sections id as string, or '0' when the page has no section marker.
      */
     const findLastSectionId = () => {
-        const sections = document.querySelectorAll('[data-for="section"][data-sectionid]');
+        const sections = document.querySelectorAll('[data-for="section"][data-id]');
         for (let i = sections.length - 1; i >= 0; i--) {
-            const num = parseInt(sections[i].dataset.sectionid, 10);
-            if (Number.isFinite(num) && num > 0) {
-                return String(num);
+            const id = parseInt(sections[i].dataset.id, 10);
+            if (Number.isFinite(id) && id > 0) {
+                return String(id);
             }
         }
         return '0';
@@ -388,11 +394,7 @@ define([
             return null;
         }
         const el = /** @type {HTMLElement} */ (eventTarget);
-        const leadDrop = el.closest(SELECTOR_SECTION_LEAD_DROP);
-        if (leadDrop && leadDrop.closest('[data-for="section"]')) {
-            return leadDrop;
-        }
-        const activity = el.closest('li.activity[data-for="cmitem"]');
+        const activity = el.closest(CM_ITEM);
         if (activity && activity.closest('[data-for="section"]')) {
             return activity;
         }
@@ -404,8 +406,197 @@ define([
     };
 
     /**
+     * Viewport rectangle of an element, or the union of its children's boxes when it has none
+     * (formats rendering the cm list item as display: contents).
+     *
+     * @param {HTMLElement} el - Element to measure.
+     * @returns {Object} Rectangle with left, top, right, bottom, width and height.
+     */
+    const rectOf = (el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            return rect;
+        }
+        let union = null;
+        Array.prototype.forEach.call(el.children, (child) => {
+            const childRect = rectOf(child);
+            if (childRect.width <= 0 || childRect.height <= 0) {
+                return;
+            }
+            if (!union) {
+                union = {
+                    left: childRect.left,
+                    top: childRect.top,
+                    right: childRect.right,
+                    bottom: childRect.bottom
+                };
+                return;
+            }
+            union.left = Math.min(union.left, childRect.left);
+            union.top = Math.min(union.top, childRect.top);
+            union.right = Math.max(union.right, childRect.right);
+            union.bottom = Math.max(union.bottom, childRect.bottom);
+        });
+        if (!union) {
+            return rect;
+        }
+        union.width = union.right - union.left;
+        union.height = union.bottom - union.top;
+        return union;
+    };
+
+    /**
+     * True when two rectangles overlap vertically enough to sit on the same row.
+     *
+     * @param {Object} a - First rectangle.
+     * @param {Object} b - Second rectangle.
+     * @returns {boolean}
+     */
+    const sharesRow = (a, b) => {
+        const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        return overlap > Math.min(a.height, b.height) / 2;
+    };
+
+    /**
+     * Whether a viewport point falls inside a rectangle.
+     *
+     * @param {Object} rect - Rectangle to test.
+     * @param {number} x - Point x in viewport coordinates.
+     * @param {number} y - Point y in viewport coordinates.
+     * @returns {boolean}
+     */
+    const rectContains = (rect, x, y) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+    /**
+     * Nearest sibling activity of a course-module list item.
+     *
+     * @param {HTMLElement} el - Course-module list item.
+     * @param {boolean} forward - Look after the item instead of before it.
+     * @returns {HTMLElement|null}
+     */
+    const siblingCmItem = (el, forward) => {
+        let sibling = forward ? el.nextElementSibling : el.previousElementSibling;
+        while (sibling && !sibling.matches(CM_ITEM)) {
+            sibling = forward ? sibling.nextElementSibling : sibling.previousElementSibling;
+        }
+        return sibling;
+    };
+
+    /**
+     * Middle of the gap between the target edge and its neighbour, or that edge when there is none.
+     *
+     * @param {number} inner - Target edge on the insertion side.
+     * @param {number|null} outer - Facing neighbour edge.
+     * @param {boolean} after - Inserting after the target.
+     * @returns {number}
+     */
+    const gapCentre = (inner, outer, after) => {
+        if (outer === null || (after ? outer < inner : outer > inner)) {
+            return inner;
+        }
+        return (inner + outer) / 2;
+    };
+
+    /**
+     * Where a drop over an activity inserts, and where to draw the insertion bar.
+     *
+     * @param {HTMLElement} target - Activity under the pointer.
+     * @param {number} clientX - Pointer x in viewport coordinates.
+     * @param {number} clientY - Pointer y in viewport coordinates.
+     * @returns {Object} beforeMod plus the marker placement (horizontal, x, y, length).
+     */
+    const describeDrop = (target, clientX, clientY) => {
+        const rect = rectOf(target);
+        const prev = siblingCmItem(target, false);
+        const next = siblingCmItem(target, true);
+        const prevRect = prev ? rectOf(prev) : null;
+        const nextRect = next ? rectOf(next) : null;
+        // A neighbour on the same row means the section flows left to right (grid, tiles, cards).
+        const horizontal = !!((prevRect && sharesRow(rect, prevRect)) || (nextRect && sharesRow(rect, nextRect)));
+        let after = clientY > rect.top + rect.height / 2;
+        if (horizontal) {
+            after = clientX > rect.left + rect.width / 2;
+        }
+
+        let beforeMod = target.dataset.id || '';
+        if (after) {
+            beforeMod = next ? (next.dataset.id || '') : '';
+        }
+
+        const neighbour = after ? nextRect : prevRect;
+        let outer = null;
+        if (horizontal) {
+            if (neighbour && sharesRow(rect, neighbour)) {
+                outer = after ? neighbour.left : neighbour.right;
+            }
+            const inner = after ? rect.right : rect.left;
+            return {
+                beforeMod: beforeMod,
+                horizontal: true,
+                x: gapCentre(inner, outer, after),
+                y: rect.top,
+                length: rect.height
+            };
+        }
+        if (neighbour) {
+            outer = after ? neighbour.top : neighbour.bottom;
+        }
+        const inner = after ? rect.bottom : rect.top;
+        return {
+            beforeMod: beforeMod,
+            horizontal: false,
+            x: rect.left,
+            y: gapCentre(inner, outer, after),
+            length: rect.width
+        };
+    };
+
+    /**
+     * Insertion point for a drop: id of the module to insert before, empty for the end of the section.
+     *
+     * @param {HTMLElement} target - Drop target under the pointer.
+     * @param {number} clientX - Pointer x in viewport coordinates.
+     * @param {number} clientY - Pointer y in viewport coordinates.
+     * @returns {string}
+     */
+    const resolveBeforeMod = (target, clientX, clientY) => {
+        if (target.matches(CM_ITEM)) {
+            return describeDrop(target, clientX, clientY).beforeMod;
+        }
+        const next = target.nextElementSibling;
+        return (next && next.dataset && next.dataset.id) ? next.dataset.id : '';
+    };
+
+    /**
+     * Draw the insertion bar at a computed placement.
+     *
+     * @param {Object} placement - Placement returned by describeDrop().
+     */
+    const showDropMarker = (placement) => {
+        if (!dropMarker) {
+            dropMarker = document.createElement('div');
+            dropMarker.className = DROP_MARKER_CLASS;
+            dropMarker.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(dropMarker);
+        }
+        const half = DROP_MARKER_THICKNESS / 2;
+        dropMarker.style.left = (placement.horizontal ? placement.x - half : placement.x) + 'px';
+        dropMarker.style.top = (placement.horizontal ? placement.y : placement.y - half) + 'px';
+        dropMarker.style.width = (placement.horizontal ? DROP_MARKER_THICKNESS : placement.length) + 'px';
+        dropMarker.style.height = (placement.horizontal ? placement.length : DROP_MARKER_THICKNESS) + 'px';
+    };
+
+    /** Remove the insertion bar. */
+    const hideDropMarker = () => {
+        if (dropMarker) {
+            dropMarker.remove();
+            dropMarker = null;
+        }
+    };
+
+    /**
      * Wire generation links as drag sources and course sections/activities as drop targets.
-     * On drop, sets data-section-number / data-before-mod on the link and triggers click to open the modal.
+     * On drop, sets data-section-id / data-before-mod on the link and triggers click to open the modal.
      *
      * @param {HTMLElement} block - The activity chooser block element.
      */
@@ -432,7 +623,7 @@ define([
                     return;
                 }
                 try {
-                    dt.setData('text/plain', option.getAttribute('data-module-name') || '');
+                    dt.setData(DRAG_MIME, option.getAttribute('data-module-name') || '');
                     dt.effectAllowed = 'copyMove';
                 } catch (e) {
                     // DataTransfer#setData may throw in restricted drag contexts.
@@ -449,82 +640,36 @@ define([
         }
         courseDropDelegationAttached = true;
 
-        /**
-         * Remove lead-drop zones when they no longer sit before a cm item (partial DOM refresh).
-         */
-        const removeOrphanSectionLeadDrops = () => {
-            document.querySelectorAll(SELECTOR_SECTION_LEAD_DROP).forEach((zone) => {
-                const next = zone.nextElementSibling;
-                if (!next || !next.matches || !next.matches('li.activity[data-for="cmitem"]')) {
-                    zone.remove();
-                }
-            });
-        };
-
-        /**
-         * Place one droppable strip before the first activity in each cmlist (view and editing).
-         */
-        const syncSectionLeadDropzones = () => {
-            removeOrphanSectionLeadDrops();
-            document.querySelectorAll('[data-for="section"] ul[data-for="cmlist"]').forEach((ul) => {
-                const firstCm = ul.querySelector(':scope > li.activity[data-for="cmitem"]');
-                if (!firstCm) {
-                    return;
-                }
-                let zone = ul.querySelector(SCOPED_SECTION_LEAD_DROP);
-                if (!zone) {
-                    zone = /** @type {HTMLLIElement} */ (document.createElement('li'));
-                    zone.setAttribute('data-dixeo-modulegen', SECTION_LEAD_DROP);
-                    zone.className = 'dixeo-modulegen-section-lead-drop';
-                    zone.setAttribute('aria-hidden', 'true');
-                    firstCm.before(zone);
-                } else if (zone.nextElementSibling !== firstCm) {
-                    firstCm.before(zone);
-                }
-            });
-            document.querySelectorAll('[data-for="section"] ul[data-for="cmlist"]').forEach((ul) => {
-                const zones = ul.querySelectorAll(SCOPED_SECTION_LEAD_DROP);
-                for (let i = 1; i < zones.length; i++) {
-                    zones[i].remove();
-                }
-            });
-        };
-
-        let leadDropSyncTimer = null;
-        const scheduleSyncSectionLeadDropzones = () => {
-            if (leadDropSyncTimer !== null) {
-                return;
-            }
-            leadDropSyncTimer = window.setTimeout(() => {
-                leadDropSyncTimer = null;
-                syncSectionLeadDropzones();
-            }, 120);
-        };
-
-        syncSectionLeadDropzones();
-        const leadDropObserverRoot = document.querySelector('#region-main') || document.body;
-        const leadDropObserver = new MutationObserver(() => scheduleSyncSectionLeadDropzones());
-        leadDropObserver.observe(leadDropObserverRoot, {childList: true, subtree: true});
-        const bodyClassObserver = new MutationObserver(() => syncSectionLeadDropzones());
-        bodyClassObserver.observe(document.body, {attributes: true, attributeFilter: ['class']});
-        document.addEventListener('job-completed', scheduleSyncSectionLeadDropzones);
-
         const getActiveDragOption = () => block.querySelector('.optioninfo a.dragging');
 
-        const clearDropHighlights = () => {
+        /**
+         * Whether a drag event carries a catalogue option, as opposed to any other drag on the page.
+         *
+         * @param {DragEvent} e
+         * @returns {boolean}
+         */
+        const isCatalogueDrag = (e) => {
+            const types = e.dataTransfer ? e.dataTransfer.types : null;
+            return !!types && Array.prototype.includes.call(types, DRAG_MIME);
+        };
+
+        const clearDropFeedback = () => {
+            hideDropMarker();
             if (highlightedGenerationDropTarget) {
-                DROP_HIGHLIGHT_CLASSES.forEach((c) => highlightedGenerationDropTarget.classList.remove(c));
+                highlightedGenerationDropTarget.classList.remove(DROP_TARGET_CLASS);
                 highlightedGenerationDropTarget = null;
             }
+            pendingBeforeMod = '';
         };
 
         document.addEventListener('dragover', (e) => {
-            if (!getActiveDragOption()) {
+            if (!isCatalogueDrag(e) || !getActiveDragOption()) {
+                clearDropFeedback();
                 return;
             }
             const dropEl = findGenerationDropTarget(e.target);
             if (!dropEl) {
-                clearDropHighlights();
+                clearDropFeedback();
                 return;
             }
             e.preventDefault();
@@ -533,51 +678,61 @@ define([
                 dt.dropEffect = 'copy';
             }
             if (highlightedGenerationDropTarget !== dropEl) {
-                clearDropHighlights();
+                clearDropFeedback();
                 highlightedGenerationDropTarget = dropEl;
-                DROP_HIGHLIGHT_CLASSES.forEach((c) => dropEl.classList.add(c));
+                dropEl.classList.add(DROP_TARGET_CLASS);
+            }
+            if (dropEl.matches(CM_ITEM)) {
+                const placement = describeDrop(dropEl, e.clientX, e.clientY);
+                pendingBeforeMod = placement.beforeMod;
+                showDropMarker(placement);
+                return;
+            }
+            // Section title: appends to the section, so there is no insertion point to draw.
+            pendingBeforeMod = resolveBeforeMod(dropEl, e.clientX, e.clientY);
+            hideDropMarker();
+        }, USE_CAPTURE);
+
+        document.addEventListener('dragleave', (e) => {
+            if (highlightedGenerationDropTarget
+                    && !rectContains(rectOf(highlightedGenerationDropTarget), e.clientX, e.clientY)) {
+                clearDropFeedback();
             }
         }, USE_CAPTURE);
 
         document.addEventListener('drop', (e) => {
-            const activeOption = getActiveDragOption();
+            const activeOption = isCatalogueDrag(e) ? getActiveDragOption() : null;
             if (!activeOption) {
                 return;
             }
-            const activity = findGenerationDropTarget(e.target);
-            if (!activity) {
+            const dropEl = findGenerationDropTarget(e.target);
+            if (!dropEl) {
                 return;
             }
             e.preventDefault();
             e.stopPropagation();
-            clearDropHighlights();
 
-            const section = activity.closest('[data-for="section"]');
-            if (!section || section.dataset.sectionid === undefined) {
+            // The dragover decision is replayed; the pointer has not moved since.
+            let beforeMod = pendingBeforeMod;
+            if (highlightedGenerationDropTarget !== dropEl) {
+                beforeMod = resolveBeforeMod(dropEl, e.clientX, e.clientY);
+            }
+            clearDropFeedback();
+
+            const section = dropEl.closest('[data-for="section"]');
+            if (!section || section.dataset.id === undefined) {
                 return;
             }
 
-            const sectionId = section.dataset.sectionid;
-            let beforeMod = null;
-            if (activity.getAttribute('data-dixeo-modulegen') === SECTION_LEAD_DROP) {
-                const firstCm = activity.nextElementSibling;
-                if (!firstCm || !firstCm.dataset || !firstCm.dataset.id) {
-                    return;
-                }
-                beforeMod = firstCm.dataset.id;
-            } else {
-                const nextActivity = activity.nextElementSibling;
-                if (nextActivity && nextActivity.dataset && nextActivity.dataset.id) {
-                    beforeMod = nextActivity.dataset.id;
-                }
-            }
-
-            activeOption.dataset.sectionNumber = sectionId;
-            activeOption.dataset.beforeMod = beforeMod || '';
+            activeOption.dataset.sectionId = section.dataset.id;
+            activeOption.dataset.beforeMod = beforeMod;
             activeOption.click();
         }, USE_CAPTURE);
 
-        document.addEventListener('dragend', clearDropHighlights);
+        document.addEventListener('dragend', () => {
+            clearDropFeedback();
+            block.querySelectorAll('.optioninfo a.dragging').forEach((o) => o.classList.remove('dragging'));
+        });
     };
 
     return {

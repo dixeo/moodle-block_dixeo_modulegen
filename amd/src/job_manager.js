@@ -14,7 +14,7 @@
  * Events dispatched:
  * - job-queued: {queueId, status} - Job submitted and queued
  * - job-processing: {queueId, jobId} - Job started processing
- * - job-completed: {queueId, cmid, sectionNumber} - Module created successfully
+ * - job-completed: {queueId, cmid, sectionid, sectionnumber, beforemod} - Module created successfully
  * - job-failed: {queueId, error} - Job failed
  *
  * @module     block_dixeo_modulegen/job_manager
@@ -148,16 +148,23 @@ define([
     /**
      * Dispatch job-completed with queue task metadata when available.
      *
+     * The detail repeats the task's beforemod (the module the new one was
+     * inserted before, 0 for end of section) so listeners refreshing their
+     * own rendering of the section know where the activity landed.
+     *
      * @param {number} queueId
      * @param {Object} job
      * @param {number} cmid
-     * @param {number} sectionNumber
+     * @param {number} sectionid Target course section id.
+     * @param {number|null} sectionnumber Number of the section the module landed in, null when unknown.
      */
-    const dispatchCompletionEvent = (queueId, job, cmid, sectionNumber) => {
+    const dispatchCompletionEvent = (queueId, job, cmid, sectionid, sectionnumber) => {
         const detail = {
             queueId: queueId,
             cmid: cmid,
-            sectionNumber: sectionNumber,
+            sectionid: sectionid,
+            sectionnumber: sectionnumber,
+            beforemod: parseInt(job.args.beforemod, 10) || 0,
             queuemode: job.queuemode || 'generate',
             courseid: job.args.courseid || courseId,
             modulename: job.args.modulename || '',
@@ -264,7 +271,7 @@ define([
      * get the already-created cmid back instead of creating a duplicate.
      *
      * @param {number} queueId - The queue record ID.
-     * @returns {Promise<{cmid: number}>} Resolves with the created module ID.
+     * @returns {Promise<{cmid: number, sectionid: number, sectionnumber: number}>} Created module and placement.
      */
     const createModuleFromJob = (queueId) => {
         return Ajax.call([{
@@ -275,7 +282,11 @@ define([
                 const message = result.message || 'Failed to create module';
                 throw new Error(message);
             }
-            return {cmid: result.cmid};
+            return {
+                cmid: result.cmid,
+                sectionid: result.sectionid || 0,
+                sectionnumber: result.sectionnumber || 0,
+            };
         });
     };
 
@@ -324,7 +335,7 @@ define([
                 try {
                     const result = await createModuleFromJob(queueId);
                     job.status = 'completed';
-                    dispatchCompletionEvent(queueId, job, result.cmid, job.args.sectionnumber);
+                    dispatchCompletionEvent(queueId, job, result.cmid, result.sectionid, result.sectionnumber);
                     activeJobs.delete(queueId);
                 } catch (error) {
                     job.status = 'failed';
@@ -469,7 +480,7 @@ define([
                 // STATUS_COMPLETED = 2 (completed by another client/cron).
                 if (status === 2) {
                     job.status = 'completed';
-                    dispatchCompletionEvent(queueId, job, task.cmid || 0, job.args.sectionnumber);
+                    dispatchCompletionEvent(queueId, job, task.cmid || 0, job.args.sectionid, null);
                     activeJobs.delete(queueId);
                     return;
                 }
@@ -517,7 +528,7 @@ define([
     /**
      * Resume polling for PROCESSING jobs found on page load.
      * This handles browser refresh during an active generation.
-     * Uses task record fields (instructions, sectionnumber, beforemod) for job args.
+     * Uses task record fields (instructions, sectionid, beforemod) for job args.
      *
      * @param {Array} tasks - Array of task objects from get_queue_status API.
      */
@@ -547,7 +558,7 @@ define([
                         courseid: courseId,
                         modulename: task.modulename,
                         instructions: task.instructions || '',
-                        sectionnumber: task.sectionnumber || 0,
+                        sectionid: task.sectionid || 0,
                         beforemod: task.beforemod || 0
                     },
                     timeoutId: null
@@ -558,8 +569,8 @@ define([
                 startJobPolling(queueId, true);
             }
 
-            // STATUS_PENDING = 0
-            if (status === 0) {
+            // STATUS_PENDING = 0, or PROCESSING claimed by the queue before the job id is known.
+            if (status === 0 || (status === 1 && !task.jobid)) {
                 if (task.queuemode === 'fill' || task.queuemode === 'manual') {
                     return;
                 }
@@ -573,7 +584,7 @@ define([
                         courseid: courseId,
                         modulename: task.modulename,
                         instructions: task.instructions || '',
-                        sectionnumber: task.sectionnumber || 0,
+                        sectionid: task.sectionid || 0,
                         beforemod: task.beforemod || 0
                     },
                     timeoutId: null
@@ -659,7 +670,7 @@ define([
          * @param {number} args.courseid - The course ID.
          * @param {string} args.modulename - The module type (page, quiz, etc.).
          * @param {string} args.instructions - User instructions for generation.
-         * @param {number} args.sectionnumber - Target section number.
+         * @param {number} args.sectionid - Target course section id.
          * @param {number} args.beforemod - Module ID to insert before (0 for end).
          * @returns {Promise<{queueId: number, status: string}>} Resolves with queue info.
          */

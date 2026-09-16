@@ -211,7 +211,7 @@ class queue_repository {
      * @param int $courseid The course ID.
      * @param string $modulename The module type.
      * @param string $instructions The AI instructions.
-     * @param int|null $sectionnumber Section number.
+     * @param int|null $sectionid Target course section id.
      * @param int|null $beforemod Course module to insert before.
      * @param string|null $lang Language code.
      * @return \stdClass The base record object.
@@ -220,7 +220,7 @@ class queue_repository {
         int $courseid,
         string $modulename,
         string $instructions,
-        ?int $sectionnumber,
+        ?int $sectionid,
         ?int $beforemod,
         ?string $lang
     ): \stdClass {
@@ -230,7 +230,7 @@ class queue_repository {
         $record->title = '';
         $record->description = '';
         $record->instructions = clean_param($instructions, PARAM_RAW_TRIMMED);
-        $record->sectionnumber = $sectionnumber;
+        $record->sectionid = $sectionid;
         $record->beforemod = $beforemod;
         $record->cmid = 0;
         $record->lang = $lang;

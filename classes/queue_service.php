@@ -49,6 +49,9 @@ use local_dixeo\api\exception\api_exception;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_service {
+    /** @var int Seconds to wait for the per-course claim lock before giving up. */
+    private const CLAIM_LOCK_TIMEOUT = 2;
+
     /**
      * Submit a generation request.
      *
@@ -57,7 +60,7 @@ class queue_service {
      * @param int $courseid The course ID.
      * @param string $modulename The module type to generate.
      * @param string $instructions Instructions for the AI.
-     * @param int|null $sectionnumber Section number to add module to.
+     * @param int|null $sectionid Target course section id.
      * @param int|null $beforemod Course module ID to insert before.
      * @param string|null $lang Language code for content.
      * @return array Result with queue_id, job_id (null until processed), and status.
@@ -66,7 +69,7 @@ class queue_service {
         int $courseid,
         string $modulename,
         string $instructions,
-        ?int $sectionnumber = null,
+        ?int $sectionid = null,
         ?int $beforemod = null,
         ?string $lang = null
     ): array {
@@ -85,7 +88,7 @@ class queue_service {
             $instructions,
             queue_status::STATUS_PENDING,
             null,
-            $sectionnumber,
+            $sectionid,
             $beforemod,
             $lang,
             $userid > 0 ? $userid : null
@@ -227,67 +230,30 @@ class queue_service {
     }
 
     /**
-     * Process the next pending generate task: ensure file sync, then submit to the API.
+     * Process the next pending generate task: claim it, ensure file sync, then submit to the API.
      *
-     * Called from the adhoc queue processor. Processes one successful promotion per run;
-     * skips invalid pending rows and retries the next on sync/API failure.
+     * Called from the adhoc queue processor. The row is promoted to PROCESSING under a per-course
+     * lock before any remote call, so concurrent runs can never submit the same task twice.
+     * Processes one successful promotion per run; skips invalid pending rows and retries the next
+     * on sync/API failure.
      *
      * @param int $courseid The course ID.
      * @param int $fallbackuserid User ID from the adhoc task when task params lack submittedby.
-     * @return array|null Task info with job_id if started, null if no pending tasks or already processing.
+     * @return array|null Task info with job_id if started, null if nothing was claimed.
      */
     public static function process_next_pending(int $courseid, int $fallbackuserid = 0): ?array {
-        if (self::has_active_job($courseid)) {
-            return null;
-        }
-
         while (true) {
-            $task = queue_repository::get_next_pending($courseid, queue_status::STATUS_PENDING);
-
+            $task = self::claim_next_pending($courseid, $fallbackuserid);
             if (!$task) {
                 return null;
             }
 
-            // Terminal log rows (fill / manual) must never run through the generate API.
-            if (queue_task_mode::is_fill($task->params ?? null)) {
-                $task->status = queue_status::STATUS_FAILED;
-                $task->timecompleted = time();
-                self::update_task_params($task, [
-                    'error' => get_string('error_invalid_fill_pending', 'block_dixeo_modulegen'),
-                ]);
-                queue_repository::update($task);
-                continue;
-            }
-            if (queue_task_mode::is_manual($task->params ?? null)) {
-                $task->status = queue_status::STATUS_FAILED;
-                $task->timecompleted = time();
-                self::update_task_params($task, [
-                    'error' => get_string('error_invalid_manual_pending', 'block_dixeo_modulegen'),
-                ]);
-                queue_repository::update($task);
-                continue;
-            }
-
             $userid = self::resolve_submitter_userid($task, $fallbackuserid);
-            if ($userid <= 0) {
-                $task->status = queue_status::STATUS_FAILED;
-                $task->timecompleted = time();
-                self::update_task_params($task, [
-                    'error' => get_string('error_missing_submitter', 'block_dixeo_modulegen'),
-                ]);
-                queue_repository::update($task);
-                continue;
-            }
 
             try {
                 service_factory::get_file_sync_service()->ensure_enabled_and_synchronized($courseid, $userid);
             } catch (\Throwable $e) {
-                $task->status = queue_status::STATUS_FAILED;
-                $task->timecompleted = time();
-                self::update_task_params($task, [
-                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
-                ]);
-                queue_repository::update($task);
+                self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
                 continue;
             }
 
@@ -296,32 +262,105 @@ class queue_service {
                     $task->modulename,
                     $task->instructions,
                     $courseid,
-                    $task->sectionnumber
+                    section_resolver::get_number($courseid, (int) ($task->sectionid ?? 0))
                 );
+            } catch (\Throwable $e) {
+                self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+                continue;
+            }
+
+            $task->jobid = $result->jobid;
+            self::update_task_params($task, ['jobid' => $result->jobid]);
+            queue_repository::update($task);
+
+            return [
+                'queueid' => (int) $task->id,
+                'jobid' => $result->jobid,
+                'modulename' => $task->modulename,
+                'courseid' => $courseid,
+                'sectionid' => $task->sectionid,
+                'beforemod' => $task->beforemod,
+            ];
+        }
+    }
+
+    /**
+     * Claim the next pending generate task for a course, marking it PROCESSING under a lock.
+     *
+     * Invalid pending rows (fill, manual, unknown submitter) are failed and skipped. Returns null
+     * when the course lock is held elsewhere, another job is already active, or nothing is pending.
+     *
+     * @param int $courseid The course ID.
+     * @param int $fallbackuserid User ID from the adhoc task when task params lack submittedby.
+     * @return object|null The claimed task, already PROCESSING with an empty jobid, or null.
+     */
+    private static function claim_next_pending(int $courseid, int $fallbackuserid): ?object {
+        $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
+        $lock = $lockfactory->get_lock('course_' . $courseid, self::CLAIM_LOCK_TIMEOUT);
+        if (!$lock) {
+            return null;
+        }
+
+        try {
+            if (self::has_active_job($courseid)) {
+                return null;
+            }
+
+            while (true) {
+                $task = queue_repository::get_next_pending($courseid, queue_status::STATUS_PENDING);
+                if (!$task) {
+                    return null;
+                }
+
+                $rejection = self::pending_rejection_reason($task, $fallbackuserid);
+                if ($rejection !== null) {
+                    self::fail_task_with_error($task, $rejection);
+                    continue;
+                }
 
                 $task->status = queue_status::STATUS_PROCESSING;
-                $task->jobid = $result->jobid;
                 $task->timestarted = time();
-                self::update_task_params($task, ['jobid' => $result->jobid]);
                 queue_repository::update($task);
 
-                return [
-                    'queueid' => (int) $task->id,
-                    'jobid' => $result->jobid,
-                    'modulename' => $task->modulename,
-                    'courseid' => $courseid,
-                    'sectionnumber' => $task->sectionnumber,
-                    'beforemod' => $task->beforemod,
-                ];
-            } catch (\Exception $e) {
-                $task->status = queue_status::STATUS_FAILED;
-                $task->timecompleted = time();
-                self::update_task_params($task, [
-                    'error' => exception_message::format_for_queue($e, 'generationfailed'),
-                ]);
-                queue_repository::update($task);
+                return $task;
             }
+        } finally {
+            $lock->release();
         }
+    }
+
+    /**
+     * Reason why a pending row cannot be submitted to the generate API, if any.
+     *
+     * @param object $task Queue row.
+     * @param int $fallbackuserid Fallback from adhoc custom data.
+     * @return string|null Error message to store on the row, or null when the row is valid.
+     */
+    private static function pending_rejection_reason(object $task, int $fallbackuserid): ?string {
+        // Terminal log rows (fill / manual) must never run through the generate API.
+        if (queue_task_mode::is_fill($task->params ?? null)) {
+            return get_string('error_invalid_fill_pending', 'block_dixeo_modulegen');
+        }
+        if (queue_task_mode::is_manual($task->params ?? null)) {
+            return get_string('error_invalid_manual_pending', 'block_dixeo_modulegen');
+        }
+        if (self::resolve_submitter_userid($task, $fallbackuserid) <= 0) {
+            return get_string('error_missing_submitter', 'block_dixeo_modulegen');
+        }
+        return null;
+    }
+
+    /**
+     * Mark a task failed with an error message stored in params.
+     *
+     * @param object $task Queue row.
+     * @param string $error Error message.
+     * @return void
+     */
+    private static function fail_task_with_error(object $task, string $error): void {
+        self::finalize_task($task, queue_status::STATUS_FAILED, function ($task) use ($error) {
+            self::update_task_params($task, ['error' => $error]);
+        });
     }
 
     /**
@@ -347,7 +386,7 @@ class queue_service {
      * @param string $instructions The AI instructions.
      * @param int $status The initial task status.
      * @param string|null $jobid The Dixeo job UUID (for processing tasks).
-     * @param int|null $sectionnumber Section number.
+     * @param int|null $sectionid Target course section id.
      * @param int|null $beforemod Course module to insert before.
      * @param string|null $lang Language code.
      * @param int|null $submittedby User who submitted the generate request (for file sync).
@@ -359,7 +398,7 @@ class queue_service {
         string $instructions,
         int $status,
         ?string $jobid = null,
-        ?int $sectionnumber = null,
+        ?int $sectionid = null,
         ?int $beforemod = null,
         ?string $lang = null,
         ?int $submittedby = null
@@ -368,7 +407,7 @@ class queue_service {
             $courseid,
             $modulename,
             $instructions,
-            $sectionnumber,
+            $sectionid,
             $beforemod,
             $lang
         );
@@ -484,7 +523,7 @@ class queue_service {
      * @param int $courseid Course id.
      * @param string $modulename Dixeo module type identifier.
      * @param string $instructions Fill instructions submitted by the user.
-     * @param int $sectionnumber Course section number.
+     * @param int $sectionnumber Number of the section the module was placed in.
      * @param int|null $beforemod Insert-before cm id or null.
      * @param int $cmid Created course module id.
      * @param string $displaytitle Display title for the queue row.
@@ -510,7 +549,7 @@ class queue_service {
             $courseid,
             $modulename,
             $instructions,
-            $sectionnumber,
+            section_resolver::get_id($courseid, $sectionnumber) ?: null,
             $beforemod,
             $lang
         );
@@ -535,7 +574,7 @@ class queue_service {
      *
      * @param int $courseid Course id.
      * @param string $modulename Dixeo module type identifier.
-     * @param int $sectionnumber Course section number.
+     * @param int $sectionnumber Number of the section the module was placed in.
      * @param int|null $beforemod Insert-before cm id or null.
      * @param int $cmid Created course module id.
      * @param string $displaytitle Display title for the queue row.
@@ -558,7 +597,7 @@ class queue_service {
             $courseid,
             $modulename,
             get_string('queue_manual_upload_label', 'block_dixeo_modulegen'),
-            $sectionnumber,
+            section_resolver::get_id($courseid, $sectionnumber) ?: null,
             $beforemod,
             $lang
         );
@@ -583,7 +622,7 @@ class queue_service {
      * @param int $courseid Course id.
      * @param string $modulename Dixeo module type identifier.
      * @param string $instructions Fill instructions submitted by the user.
-     * @param int $sectionnumber Course section number.
+     * @param int $sectionnumber Number of the section the module was placed in.
      * @param int|null $beforemod Insert-before cm id or null.
      * @param string $displaytitle Display title for the queue row.
      * @param string $summaryraw Fill summary payload stored in params.
@@ -609,7 +648,7 @@ class queue_service {
             $courseid,
             $modulename,
             $instructions,
-            $sectionnumber,
+            section_resolver::get_id($courseid, $sectionnumber) ?: null,
             $beforemod,
             $lang
         );
@@ -630,7 +669,37 @@ class queue_service {
     }
 
     /**
-     * Mark a failed fill row completed after successful retry.
+     * Claim a failed fill row for retry: mark it PROCESSING and clear the previous error.
+     *
+     * Callers must hold the per-task lock so two retries cannot claim the same row.
+     *
+     * @param int $queueid Queue row id.
+     * @return bool True when the row was claimed.
+     */
+    public static function start_fill_retry(int $queueid): bool {
+        $task = queue_repository::get_by_id($queueid);
+        if (!$task || (int) $task->status !== queue_status::STATUS_FAILED) {
+            return false;
+        }
+        if (!queue_task_mode::is_fill($task->params)) {
+            return false;
+        }
+        $params = $task->params ? json_decode($task->params, true) : [];
+        if (!is_array($params)) {
+            $params = [];
+        }
+        unset($params['error']);
+        $task->params = json_encode($params);
+        $task->status = queue_status::STATUS_PROCESSING;
+        // Keep jobid empty: a processing row with a jobid is a generate job awaiting module creation.
+        $task->jobid = '';
+        $task->timestarted = time();
+        $task->timecompleted = 0;
+        return queue_repository::update($task);
+    }
+
+    /**
+     * Mark a fill row being retried completed, and resume queue processing.
      *
      * @param int $queueid Queue row id.
      * @param int $cmid Created course module id.
@@ -639,7 +708,7 @@ class queue_service {
      */
     public static function complete_failed_fill_retry(int $queueid, int $cmid, string $filljobid = ''): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task || (int) $task->status !== queue_status::STATUS_FAILED) {
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
             return false;
         }
         if (!queue_task_mode::is_fill($task->params)) {
@@ -658,11 +727,13 @@ class queue_service {
         $task->status = queue_status::STATUS_COMPLETED;
         $task->cmid = $cmid;
         $task->timecompleted = time();
-        return queue_repository::update($task);
+        $updated = queue_repository::update($task);
+        self::schedule_queue_processing((int) $task->courseid);
+        return $updated;
     }
 
     /**
-     * Refresh error text on a failed fill row after a failed retry.
+     * Return a fill row being retried to failed, and resume queue processing.
      *
      * @param int $queueid Queue row id.
      * @param string $error Failure message to store in params.
@@ -670,15 +741,18 @@ class queue_service {
      */
     public static function fail_fill_retry(int $queueid, string $error): bool {
         $task = queue_repository::get_by_id($queueid);
-        if (!$task || (int) $task->status !== queue_status::STATUS_FAILED) {
+        if (!$task || (int) $task->status !== queue_status::STATUS_PROCESSING) {
             return false;
         }
         if (!queue_task_mode::is_fill($task->params)) {
             return false;
         }
         self::update_task_params($task, ['error' => $error]);
+        $task->status = queue_status::STATUS_FAILED;
         $task->timecompleted = time();
-        return queue_repository::update($task);
+        $updated = queue_repository::update($task);
+        self::schedule_queue_processing((int) $task->courseid);
+        return $updated;
     }
 
     /**

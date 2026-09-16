@@ -8,7 +8,7 @@
     {
         "modaltitle": "Add SCORM package",
         "courseid": 2,
-        "sectionid": 1,
+        "sectionid": 42,
         "config": {
             "wwwroot": "https://example.com"
         }
@@ -17,7 +17,7 @@
 <form id="dixeo_manual_upload_form" method="post" class="manual-upload-form" enctype="multipart/form-data">
     <div class="modal-header">
         <h5 class="modal-title w-100 text-center" id="manualUploadModalLabel">{{modaltitle}}</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="{{#str}}close, moodle{{/str}}">
+        <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="{{#str}}close, moodle{{/str}}">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
@@ -58,7 +58,7 @@
         </div>
         <input type="hidden" id="manual-upload-modtype" name="modtype" value="">
         <input type="hidden" id="manual-upload-courseid" name="courseid" value="{{courseid}}">
-        <input type="hidden" id="manual-upload-sectionnumber" name="sectionnumber" value="{{sectionid}}">
+        <input type="hidden" id="manual-upload-sectionid" name="sectionid" value="{{sectionid}}">
         <input type="hidden" id="manual-upload-beforemod" name="beforemod" value="0">
     </div>
     <div class="modal-footer justify-content-end">

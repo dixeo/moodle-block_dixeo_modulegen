@@ -37,12 +37,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_dixeo_modulegen extends block_base {
-    /** @var string[] Allowed page paths where the block can be displayed. */
-    private const ALLOWED_PAGE_PATHS = [
-        '/course/view.php',
-        '/course/section.php',
-    ];
-
     /** @var string Required capability to view the block. */
     private const REQUIRED_CAPABILITY = 'local/dixeo:generate';
 
@@ -158,16 +152,10 @@ class block_dixeo_modulegen extends block_base {
     /**
      * Check if the current page is an allowed page for the block.
      *
-     * @return bool True if the current page path matches allowed paths.
+     * @return bool True on a course view page (core or format-declared).
      */
     private function is_allowed_page(): bool {
-        $url = $this->page->url->get_path();
-        foreach (self::ALLOWED_PAGE_PATHS as $path) {
-            if (str_contains($url, $path)) {
-                return true;
-            }
-        }
-        return false;
+        return \block_dixeo_modulegen\local\page_assets::is_course_view_page($this->page);
     }
 
     /**

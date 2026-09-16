@@ -43,6 +43,7 @@ use block_dixeo_modulegen\queue_repository;
 use block_dixeo_modulegen\queue_presenter;
 use block_dixeo_modulegen\queue_status;
 use block_dixeo_modulegen\queue_task_mode;
+use block_dixeo_modulegen\section_resolver;
 use block_dixeo_modulegen\event\fill_task_retried;
 use block_dixeo_modulegen\event\queue_task_cancelled;
 use block_dixeo_modulegen\event\queue_task_completed;
@@ -142,7 +143,7 @@ class api extends external_api {
             'courseid' => new external_value(PARAM_INT, 'Course ID'),
             'modulename' => new external_value(PARAM_TEXT, 'Module type to generate'),
             'instructions' => new external_value(PARAM_RAW, 'Instructions for the AI'),
-            'sectionnumber' => new external_value(PARAM_INT, 'Section number', VALUE_DEFAULT, 0),
+            'sectionid' => new external_value(PARAM_INT, 'Target course section id (0 = first section)', VALUE_DEFAULT, 0),
             'beforemod' => new external_value(PARAM_INT, 'Insert before this module ID', VALUE_DEFAULT, 0),
             'lang' => new external_value(PARAM_TEXT, 'Language code', VALUE_DEFAULT, ''),
         ]);
@@ -157,7 +158,7 @@ class api extends external_api {
      * @param int $courseid The course ID.
      * @param string $modulename The module type to generate.
      * @param string $instructions Instructions for the AI.
-     * @param int|null $sectionnumber Section number to add module to.
+     * @param int|null $sectionid Target course section id.
      * @param int|null $beforemod Course module ID to insert before.
      * @param string|null $lang Language code for content.
      * @return array Result with queue_id, empty job_id, and status queued.
@@ -166,7 +167,7 @@ class api extends external_api {
         int $courseid,
         string $modulename,
         string $instructions,
-        ?int $sectionnumber = 0,
+        ?int $sectionid = 0,
         ?int $beforemod = 0,
         ?string $lang = null
     ): array {
@@ -177,7 +178,7 @@ class api extends external_api {
             'courseid' => $courseid,
             'modulename' => $modulename,
             'instructions' => $instructions,
-            'sectionnumber' => $sectionnumber,
+            'sectionid' => $sectionid,
             'beforemod' => $beforemod,
             'lang' => $lang,
         ]);
@@ -189,7 +190,7 @@ class api extends external_api {
                 $params['courseid'],
                 $params['modulename'],
                 $params['instructions'],
-                $params['sectionnumber'] ?: null,
+                $params['sectionid'] ?: null,
                 $params['beforemod'] ?: null,
                 $params['lang']
             );
@@ -292,7 +293,7 @@ class api extends external_api {
             'statuslabel' => new external_value(PARAM_TEXT, 'Status label', VALUE_OPTIONAL),
             'jobid' => new external_value(PARAM_RAW, 'Dixeo job UUID', VALUE_OPTIONAL),
             'cmid' => new external_value(PARAM_INT, 'Created module ID', VALUE_OPTIONAL),
-            'sectionnumber' => new external_value(PARAM_INT, 'Section number', VALUE_OPTIONAL),
+            'sectionid' => new external_value(PARAM_INT, 'Target course section id', VALUE_OPTIONAL),
             'beforemod' => new external_value(PARAM_INT, 'Insert before module', VALUE_OPTIONAL),
             'link' => new external_value(PARAM_URL, 'Link to created module', VALUE_OPTIONAL),
             'displaytitle' => new external_value(PARAM_TEXT, 'Display title (New MODULETYPE or activity title)', VALUE_OPTIONAL),
@@ -496,7 +497,7 @@ class api extends external_api {
                 'jobid' => new external_value(PARAM_RAW, 'Next task job UUID'),
                 'modulename' => new external_value(PARAM_TEXT, 'Module type'),
                 'courseid' => new external_value(PARAM_INT, 'Course ID'),
-                'sectionnumber' => new external_value(PARAM_INT, 'Section number', VALUE_OPTIONAL),
+                'sectionid' => new external_value(PARAM_INT, 'Target course section id', VALUE_OPTIONAL),
                 'beforemod' => new external_value(PARAM_INT, 'Insert before module', VALUE_OPTIONAL),
             ], 'Next task that was started', VALUE_OPTIONAL),
         ]);
@@ -524,7 +525,7 @@ class api extends external_api {
      * first caller creates the module; later callers get the existing cmid.
      *
      * @param int $queueid The queue record ID.
-     * @return array success, cmid, alreadycreated, message
+     * @return array success, cmid, sectionid, sectionnumber, alreadycreated, message
      */
     public static function create_module_for_task(int $queueid): array {
         $params = self::validate_parameters(self::create_module_for_task_parameters(), [
@@ -556,10 +557,15 @@ class api extends external_api {
                 return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => 'Task not found'];
             }
 
+            $sectionid = (int) ($task->sectionid ?? 0);
+            $sectionnumber = section_resolver::get_number((int) $task->courseid, $sectionid);
+
             if ((int) $task->status === queue_status::STATUS_COMPLETED && !empty($task->cmid)) {
                 return [
                     'success' => true,
                     'cmid' => (int) $task->cmid,
+                    'sectionid' => $sectionid,
+                    'sectionnumber' => $sectionnumber,
                     'alreadycreated' => true,
                     'message' => '',
                 ];
@@ -577,7 +583,7 @@ class api extends external_api {
             $result = create_module_from_job::execute(
                 (string) $task->jobid,
                 (int) $task->courseid,
-                (int) ($task->sectionnumber ?? 0),
+                $sectionnumber,
                 !empty($task->beforemod) ? (int) $task->beforemod : null
             );
 
@@ -598,6 +604,8 @@ class api extends external_api {
             return [
                 'success' => true,
                 'cmid' => (int) $result['cmid'],
+                'sectionid' => $sectionid,
+                'sectionnumber' => $sectionnumber,
                 'alreadycreated' => false,
                 'message' => '',
             ];
@@ -615,6 +623,8 @@ class api extends external_api {
         return new external_single_structure([
             'success' => new external_value(PARAM_BOOL, 'Whether the module exists for this task'),
             'cmid' => new external_value(PARAM_INT, 'Created course module id (0 on failure)'),
+            'sectionid' => new external_value(PARAM_INT, 'Target course section id', VALUE_OPTIONAL),
+            'sectionnumber' => new external_value(PARAM_INT, 'Number of the section the module was placed in', VALUE_OPTIONAL),
             'alreadycreated' => new external_value(PARAM_BOOL, 'True if another caller already created the module'),
             'message' => new external_value(PARAM_RAW, 'Error message or empty', VALUE_DEFAULT, ''),
         ]);
@@ -675,6 +685,15 @@ class api extends external_api {
             ];
         }
 
+        // Claim the row before any remote call, so a concurrent retry cannot create a second module.
+        if (!self::claim_failed_fill_task($params['queueid'])) {
+            return [
+                'success' => false,
+                'message' => get_string('retry_fill_notfailed', 'block_dixeo_modulegen'),
+                'cmid' => 0,
+            ];
+        }
+
         $p = $task->params ? json_decode($task->params, true) : [];
         $p = is_array($p) ? $p : [];
         $rawtitle = isset($p['title']) ? trim((string) $p['title']) : trim((string) ($task->title ?? ''));
@@ -687,7 +706,7 @@ class api extends external_api {
             (string) $task->modulename,
             (string) $task->instructions,
             (int) $task->courseid,
-            (int) ($task->sectionnumber ?? 0),
+            section_resolver::get_number((int) $task->courseid, (int) ($task->sectionid ?? 0)),
             $beforemod,
             $filldisplay,
             $nameoverride,
@@ -711,15 +730,15 @@ class api extends external_api {
             ];
         }
 
-        if (!empty($out['error'])) {
-            queue_service::fail_fill_retry($params['queueid'], (string) $out['error']);
-        }
+        // Always finalize: the claimed row must never stay processing after the pipeline returns.
+        $errormessage = !empty($out['error'])
+            ? (string) $out['error']
+            : get_string('retry_fill_failed', 'block_dixeo_modulegen');
+        queue_service::fail_fill_retry($params['queueid'], $errormessage);
 
         return [
             'success' => false,
-            'message' => !empty($out['error'])
-                ? (string) $out['error']
-                : get_string('retry_fill_failed', 'block_dixeo_modulegen'),
+            'message' => $errormessage,
             'cmid' => 0,
         ];
     }
@@ -735,6 +754,26 @@ class api extends external_api {
             'message' => new external_value(PARAM_RAW, 'Error or empty', VALUE_DEFAULT, ''),
             'cmid' => new external_value(PARAM_INT, 'Created course module id on success'),
         ]);
+    }
+
+    /**
+     * Mark a failed fill row as processing under a per-task lock.
+     *
+     * @param int $queueid Queue row id.
+     * @return bool False when the lock is held elsewhere or the row is no longer a failed fill.
+     */
+    private static function claim_failed_fill_task(int $queueid): bool {
+        $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
+        $lock = $lockfactory->get_lock('task_' . $queueid, 0);
+        if (!$lock) {
+            return false;
+        }
+
+        try {
+            return queue_service::start_fill_retry($queueid);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

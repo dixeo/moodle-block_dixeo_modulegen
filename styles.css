@@ -24,7 +24,7 @@
  *   4. Queue (expanded panel, header, filters, task list)
  *   5. Activity chooser (options, categories, drag-drop)
  *   6. Module generator modals (generation + manual upload; body bg: --dixeo-modulegen-modal-body-bg)
- *   7. Context overrides (editing mode, course view, drop-target highlight on cm items)
+ *   7. Context overrides (editing mode, course view, drag-and-drop insertion marker)
  *   8. Media queries
  *
  * @author Josemaria Bolanos <admin@mako.digital>
@@ -734,54 +734,21 @@
    ========================================================================== */
 
 /*
- * Module generator drop highlight: no .course-content ancestor required (topics, Boost, section.php, etc.).
- * .dd-drop-down kept for back-compat with cached JS; .dixeo-modulegen-drop-target is the stable hook.
- * Override tokens on .dixeo-modulegen-drop-target (or these selectors) from a theme or format SCSS.
+ * Insertion marker for the chooser drag and drop: a fixed bar positioned from JS at the
+ * computed insertion point, so it works for list and grid course formats alike.
  */
-li.activity[data-for="cmitem"].dixeo-modulegen-drop-target,
-[data-for="section_title"].dixeo-modulegen-drop-target,
-li.activity[data-for="cmitem"].dd-drop-down,
-[data-for="section_title"].dd-drop-down {
-    --dixeo-modulegen-drop-line-width: 3px;
-    --dixeo-modulegen-drop-line-style: dashed;
-    /* Boost / modern themes expose --primary; fallback matches Moodle default blue */
-    --dixeo-modulegen-drop-line-color: var(--primary, #0f6cbf);
-    border-bottom:
-        var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
-        var(--dixeo-modulegen-drop-line-color);
-    margin-bottom: calc(-1 * var(--dixeo-modulegen-drop-line-width));
+.dixeo-modulegen-drop-marker {
+    position: fixed;
+    z-index: 1080;
+    pointer-events: none;
+    border-radius: 2px;
+    background-color: var(--dixeo-modulegen-drop-marker, #0f6cbd);
 }
 
 /*
- * First-slot placeholder only (inside course cmlist): empty li’s bottom border is covered by the
- * first activity card — draw border-top on the adjacent cm. Scoped to ul[data-for="cmlist"] so
- * other drop highlights are unchanged.
+ * .dixeo-modulegen-drop-target is set on the activity or section title under the cursor:
+ * a stable hook for theme/format overrides, intentionally unstyled by default.
  */
-ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop.dixeo-modulegen-drop-target,
-ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop.dd-drop-down {
-    border-bottom: none;
-    margin-bottom: 0;
-}
-
-ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop.dixeo-modulegen-drop-target + li.activity[data-for="cmitem"],
-ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop.dd-drop-down + li.activity[data-for="cmitem"] {
-    --dixeo-modulegen-drop-line-width: 3px;
-    --dixeo-modulegen-drop-line-style: dashed;
-    --dixeo-modulegen-drop-line-color: var(--primary, #0f6cbf);
-    border-top:
-        var(--dixeo-modulegen-drop-line-width) var(--dixeo-modulegen-drop-line-style)
-        var(--dixeo-modulegen-drop-line-color);
-    margin-top: calc(-1 * var(--dixeo-modulegen-drop-line-width));
-}
-
-/* First-slot drop target: larger hit area above first cm. */
-ul[data-for="cmlist"] > li.dixeo-modulegen-section-lead-drop {
-    list-style: none;
-    min-height: 28px;
-    margin: 0;
-    padding: 4px 0;
-    box-sizing: border-box;
-}
 
 .editing .block_dixeo_modulegen > .card-body > .card-text {
     display: block;

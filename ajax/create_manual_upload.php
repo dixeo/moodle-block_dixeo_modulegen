@@ -36,7 +36,7 @@ try {
 
     $modtype = required_param('modtype', PARAM_ALPHA);
     $courseid = required_param('courseid', PARAM_INT);
-    $sectionnumber = optional_param('sectionnumber', 0, PARAM_INT);
+    $sectionid = optional_param('sectionid', 0, PARAM_INT);
     $beforemod = optional_param('beforemod', 0, PARAM_INT);
 
     // Fail closed: validate course context and capabilities before delegating to local_dixeo.
@@ -64,6 +64,8 @@ try {
     if ($filename === '') {
         throw new moodle_exception('manual_upload_error_missing', 'block_dixeo_modulegen');
     }
+
+    $sectionnumber = \block_dixeo_modulegen\section_resolver::get_number($courseid, $sectionid);
 
     $modinfo = get_fast_modinfo($courseid);
     if (!$modinfo->get_section_info($sectionnumber)) {
@@ -117,6 +119,8 @@ try {
         'modtype' => $modtype,
         'link' => $link,
         'courseid' => $courseid,
+        'sectionid' => $sectionid,
+        'sectionnumber' => $sectionnumber,
     ]);
 } catch (Throwable $e) {
     http_response_code(400);

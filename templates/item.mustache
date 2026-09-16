@@ -14,7 +14,7 @@
         "installed": true,
         "iconurl": "https://example.com/mod/page/pix/monologo.svg",
         "backgroundColor": "#17a2b8",
-        "sectionid": 1,
+        "sectionid": 42,
         "options": {
             "enabled": true,
             "href": "#",
@@ -31,10 +31,12 @@
         href="{{options.href}}"
         role="button"
         data-toggle="modal"
-        data-target="{{#options.modalTarget}}{{options.modalTarget}}{{/options.modalTarget}}{{^options.modalTarget}}#generationModal{{/options.modalTarget}}"
+        data-bs-toggle="modal"
+        data-target="{{options.modalTarget}}"
+        data-bs-target="{{options.modalTarget}}"
         data-modal-title="{{#str}}addnew, moodle, {{displayname}}{{/str}}"
         data-module-name="{{shortname}}"
-        data-section-number="{{sectionid}}"
+        data-section-id="{{sectionid}}"
         {{#manualUploadType}}data-manual-upload-type="{{manualUploadType}}"{{/manualUploadType}}
         title="{{#str}}addnew, moodle, {{displayname}}{{/str}}">
     {{/options.enabled}}

@@ -113,15 +113,14 @@ final class queue_fill_integration_test extends advanced_testcase {
             'en'
         );
         $record->title = 'T';
-        $record->status = queue_status::STATUS_FAILED;
-        $record->jobid = 'old';
-        $record->timecompleted = time();
+        $record->status = queue_status::STATUS_PROCESSING;
+        $record->jobid = '';
+        $record->timestarted = time();
         $record->params = json_encode([
             'mode' => queue_task_mode::MODE_FILL,
             'title' => 'T',
             'summary' => '',
             'dixeo_jobid' => 'old',
-            'error' => 'e',
         ]);
         $tid = queue_repository::insert($record);
 
@@ -132,6 +131,65 @@ final class queue_fill_integration_test extends advanced_testcase {
         $this->assertSame(77, (int) $row->cmid);
         $params = json_decode($row->params, true);
         $this->assertArrayNotHasKey('error', $params);
+    }
+
+    public function test_start_fill_retry_claims_row_once(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+
+        $tid = queue_service::log_fill_failed(
+            (int) $course->id,
+            'page',
+            'X',
+            0,
+            null,
+            'T',
+            'Summary',
+            'oldjob',
+            'boom'
+        );
+
+        $this->assertTrue(queue_service::start_fill_retry($tid));
+        $this->assertFalse(queue_service::start_fill_retry($tid));
+
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $tid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_PROCESSING, (int) $row->status);
+        $this->assertSame('', $row->jobid);
+        $this->assertGreaterThan(0, (int) $row->timestarted);
+        $params = json_decode($row->params, true);
+        $this->assertArrayNotHasKey('error', $params);
+        $this->assertSame('oldjob', $params['dixeo_jobid'] ?? '');
+    }
+
+    public function test_fail_fill_retry_returns_row_to_failed(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+
+        $tid = queue_service::log_fill_failed(
+            (int) $course->id,
+            'page',
+            'X',
+            0,
+            null,
+            'T',
+            'Summary',
+            'oldjob',
+            'boom'
+        );
+        $this->assertTrue(queue_service::start_fill_retry($tid));
+
+        $this->assertTrue(queue_service::fail_fill_retry($tid, 'retry boom'));
+
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $tid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
+        $params = json_decode($row->params, true);
+        $this->assertSame('retry boom', $params['error'] ?? '');
     }
 
     public function test_log_manual_upload_completed_inserts_row(): void {

@@ -266,6 +266,7 @@ final class modulegen_events_test extends \advanced_testcase {
             'submittedby' => (int) $user->id,
         ]);
         $queueid = queue_repository::insert($record);
+        $this->assertTrue(queue_service::start_fill_retry($queueid));
 
         $sink = $this->redirectEvents();
         $this->assertTrue(queue_service::complete_failed_fill_retry($queueid, 88, 'new-fill-job'));

@@ -714,7 +714,7 @@ define([
                     taskId: link.getAttribute('data-task-id'),
                     instructions: instructions,
                     modulename: link.getAttribute('data-module-name') || '',
-                    sectionnumber: link.getAttribute('data-sectionnumber') || '0',
+                    sectionid: link.getAttribute('data-sectionid') || '0',
                     beforemod: link.getAttribute('data-beforemod') || '0',
                     courseid: link.getAttribute('data-courseid') || ''
                 }

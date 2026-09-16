@@ -53,5 +53,22 @@ function xmldb_block_dixeo_modulegen_upgrade($oldversion, $block) {
         upgrade_block_savepoint(true, 2026040204, 'dixeo_modulegen');
     }
 
+    if ($oldversion < 2026090701) {
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('block_dixeo_modulegen_queue');
+
+        $field = new xmldb_field('sectionid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'instructions');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('sectionnumber');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        upgrade_block_savepoint(true, 2026090701, 'dixeo_modulegen');
+    }
+
     return true;
 }

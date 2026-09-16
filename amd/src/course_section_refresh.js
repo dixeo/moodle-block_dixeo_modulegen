@@ -93,7 +93,7 @@ define(['core_courseformat/courseeditor'], function(CourseEditor) {
     /**
      * Notify listeners that a module was created (AI queue, Dixeo shell refresh, drag-drop zones).
      *
-     * @param {Object} detail Event detail (cmid, sectionNumber, optional queueId).
+     * @param {Object} detail Event detail (cmid, sectionid, sectionnumber, beforemod, optional queueId).
      */
     const dispatchJobCompleted = (detail) => {
         document.dispatchEvent(new CustomEvent('job-completed', {detail: detail}));

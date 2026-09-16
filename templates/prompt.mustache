@@ -11,7 +11,7 @@
         "generationtitle": "New Page",
         "origin": "chooser",
         "courseid": 2,
-        "sectionid": 1,
+        "sectionid": 42,
         "config": {
             "wwwroot": "https://example.com"
         }
@@ -20,7 +20,7 @@
 <form id="dixeo_generator_form" method="post" class="generator-form">
     <div class="modal-header">
         <h5 class="modal-title w-100 text-center" id="generationModalLabel">{{generationtitle}}</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="{{#str}}close, moodle{{/str}}">
+        <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="{{#str}}close, moodle{{/str}}">
             <span aria-hidden="true">&times;</span>
         </button>
     </div>
@@ -37,7 +37,7 @@
         </div>
         <input type="hidden" id="origin" name="origin" value="{{origin}}">
         <input type="hidden" id="courseid" name="courseid" value="{{courseid}}">
-        <input type="hidden" id="sectionnumber" name="sectionnumber" value="{{sectionid}}">
+        <input type="hidden" id="sectionid" name="sectionid" value="{{sectionid}}">
         <input type="hidden" id="modulename" name="modulename" value="">
         <input type="hidden" id="beforemod" name="beforemod" value="0">
         <input type="hidden" id="retry_task_id" name="retry_task_id" value="">
