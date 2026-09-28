@@ -143,7 +143,7 @@ class api extends external_api {
             'courseid' => new external_value(PARAM_INT, 'Course ID'),
             'modulename' => new external_value(PARAM_TEXT, 'Module type to generate'),
             'instructions' => new external_value(PARAM_RAW, 'Instructions for the AI'),
-            'sectionid' => new external_value(PARAM_INT, 'Target course section id (0 = first section)', VALUE_DEFAULT, 0),
+            'sectionid' => new external_value(PARAM_INT, 'Target course section id (0 = last section)', VALUE_DEFAULT, 0),
             'beforemod' => new external_value(PARAM_INT, 'Insert before this module ID', VALUE_DEFAULT, 0),
             'lang' => new external_value(PARAM_TEXT, 'Language code', VALUE_DEFAULT, ''),
         ]);

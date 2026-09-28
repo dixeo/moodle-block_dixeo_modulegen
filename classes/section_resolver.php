@@ -39,7 +39,7 @@ namespace block_dixeo_modulegen;
  */
 class section_resolver {
     /**
-     * Section number for a section id, or 0 when the section is gone or belongs to another course.
+     * Section number for a section id, or the last section when the id is empty, gone or from another course.
      *
      * @param int $courseid The course ID.
      * @param int|null $sectionid The course section ID.
@@ -48,16 +48,27 @@ class section_resolver {
     public static function get_number(int $courseid, ?int $sectionid): int {
         global $DB;
 
-        if (empty($sectionid)) {
-            return 0;
-        }
-
-        $number = $DB->get_field('course_sections', 'section', [
+        $number = empty($sectionid) ? false : $DB->get_field('course_sections', 'section', [
             'id' => $sectionid,
             'course' => $courseid,
         ]);
 
-        return $number === false ? 0 : (int) $number;
+        return $number === false ? self::get_last_number($courseid) : (int) $number;
+    }
+
+    /**
+     * Number of the last top-level section of a course, delegated sections (subsections) excluded.
+     *
+     * @param int $courseid The course ID.
+     * @return int The section number, 0 when the course has no other section.
+     */
+    private static function get_last_number(int $courseid): int {
+        global $DB;
+
+        return (int) $DB->get_field_sql(
+            'SELECT MAX(section) FROM {course_sections} WHERE course = ? AND component IS NULL',
+            [$courseid]
+        );
     }
 
     /**

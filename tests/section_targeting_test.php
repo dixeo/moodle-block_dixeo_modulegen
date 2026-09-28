@@ -56,22 +56,47 @@ final class section_targeting_test extends advanced_testcase {
         ], MUST_EXIST);
     }
 
-    public function test_get_number_resolves_and_falls_back_to_zero(): void {
+    public function test_get_number_resolves_and_falls_back_to_the_last_section(): void {
         global $DB;
 
         $this->resetAfterTest(true);
         $course = $this->getDataGenerator()->create_course(['numsections' => 3]);
         $othercourse = $this->getDataGenerator()->create_course(['numsections' => 1]);
         $sectionid = $this->section_id((int) $course->id, 2);
+        $sectionzeroid = $this->section_id((int) $course->id, 0);
 
         $this->assertSame(2, section_resolver::get_number((int) $course->id, $sectionid));
         $this->assertSame($sectionid, section_resolver::get_id((int) $course->id, 2));
+        $this->assertSame(0, section_resolver::get_number((int) $course->id, $sectionzeroid));
 
-        // A section of another course, a deleted section and no section at all all mean section 0.
-        $this->assertSame(0, section_resolver::get_number((int) $othercourse->id, $sectionid));
-        $this->assertSame(0, section_resolver::get_number((int) $course->id, null));
+        // A section of another course, no section at all and a deleted section all mean the last section.
+        $this->assertSame(1, section_resolver::get_number((int) $othercourse->id, $sectionid));
+        $this->assertSame(3, section_resolver::get_number((int) $course->id, null));
+        $this->assertSame(3, section_resolver::get_number((int) $course->id, 0));
         $DB->delete_records('course_sections', ['id' => $sectionid]);
-        $this->assertSame(0, section_resolver::get_number((int) $course->id, $sectionid));
+        $this->assertSame(3, section_resolver::get_number((int) $course->id, $sectionid));
+    }
+
+    public function test_get_number_fallback_skips_subsections_and_keeps_zero_when_alone(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $course = $this->getDataGenerator()->create_course(['numsections' => 2]);
+        $DB->insert_record('course_sections', [
+            'course' => $course->id,
+            'section' => 3,
+            'component' => 'mod_subsection',
+            'itemid' => 1,
+            'summary' => '',
+            'summaryformat' => FORMAT_HTML,
+            'sequence' => '',
+            'visible' => 1,
+            'timemodified' => time(),
+        ]);
+        $this->assertSame(2, section_resolver::get_number((int) $course->id, null));
+
+        $emptycourse = $this->getDataGenerator()->create_course(['numsections' => 0]);
+        $this->assertSame(0, section_resolver::get_number((int) $emptycourse->id, null));
     }
 
     public function test_queued_generation_follows_its_section_when_a_section_is_inserted(): void {
