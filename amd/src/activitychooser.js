@@ -511,8 +511,10 @@ define([
         const next = siblingCmItem(target, true);
         const prevRect = prev ? rectOf(prev) : null;
         const nextRect = next ? rectOf(next) : null;
-        // A neighbour on the same row means the section flows left to right (grid, tiles, cards).
-        const horizontal = !!((prevRect && sharesRow(rect, prevRect)) || (nextRect && sharesRow(rect, nextRect)));
+        // Activities narrower than half their section flow left to right (grid, tiles, cards), including one
+        // alone on its row or in its section; full-width ones stack.
+        const section = target.closest('[data-for="section"]');
+        const horizontal = !!section && rect.width < rectOf(section).width / 2;
         let after = clientY > rect.top + rect.height / 2;
         if (horizontal) {
             after = clientX > rect.left + rect.width / 2;
