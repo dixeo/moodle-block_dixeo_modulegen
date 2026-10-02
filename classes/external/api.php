@@ -54,6 +54,8 @@ use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
+use local_dixeo\service\module_addinstance_service;
+use local_dixeo\service\module_types_service;
 
 /**
  * Unified external API class for module generation.
@@ -92,6 +94,24 @@ class api extends external_api {
         require_capability('local/dixeo:generate', $context);
         require_capability('moodle/course:manageactivities', $context);
         return $context;
+    }
+
+    /**
+     * Require an installed, supported activity type the user may add.
+     *
+     * @param int $courseid Course that will own the activity.
+     * @param string $type Dixeo module type from the request or queue row.
+     * @return string Moodle activity plugin name.
+     * @throws \moodle_exception When the type is not allowed.
+     * @throws \required_capability_exception When mod/<type>:addinstance is missing.
+     */
+    private static function authorised_generation_module(int $courseid, string $type): string {
+        $module = service_factory::get_module_types_service()->resolve_generation_module($type);
+        if ($module === null) {
+            throw new \moodle_exception('error_unsupported_module', 'block_dixeo_modulegen', '', $type);
+        }
+        module_addinstance_service::require_for_course($courseid, $module);
+        return $module;
     }
 
     /**
@@ -141,7 +161,7 @@ class api extends external_api {
     public static function submit_generation_parameters(): external_function_parameters {
         return new external_function_parameters([
             'courseid' => new external_value(PARAM_INT, 'Course ID'),
-            'modulename' => new external_value(PARAM_TEXT, 'Module type to generate'),
+            'modulename' => new external_value(PARAM_ALPHANUMEXT, 'Module type to generate'),
             'instructions' => new external_value(PARAM_RAW, 'Instructions for the AI'),
             'sectionid' => new external_value(PARAM_INT, 'Target course section id (0 = last section)', VALUE_DEFAULT, 0),
             'beforemod' => new external_value(PARAM_INT, 'Insert before this module ID', VALUE_DEFAULT, 0),
@@ -186,6 +206,8 @@ class api extends external_api {
         self::validate_course_access($params['courseid']);
 
         try {
+            self::authorised_generation_module((int) $params['courseid'], (string) $params['modulename']);
+
             $result = queue_service::submit(
                 $params['courseid'],
                 $params['modulename'],
@@ -528,6 +550,8 @@ class api extends external_api {
      * @return array success, cmid, sectionid, sectionnumber, alreadycreated, message
      */
     public static function create_module_for_task(int $queueid): array {
+        global $USER;
+
         $params = self::validate_parameters(self::create_module_for_task_parameters(), [
             'queueid' => $queueid,
         ]);
@@ -578,6 +602,38 @@ class api extends external_api {
                     'alreadycreated' => false,
                     'message' => 'Task is not awaiting module creation',
                 ];
+            }
+
+            $moodlemodule = self::authorised_generation_module((int) $task->courseid, (string) $task->modulename);
+            $jobstatus = null;
+            try {
+                $jobstatus = service_factory::get_job_service()->get_job_status(
+                    (string) $task->jobid,
+                    (int) $task->courseid,
+                    (int) $USER->id
+                );
+            } catch (\Throwable $e) {
+                // A missing job status is reported later by create_module_from_job.
+                $jobstatus = null;
+            }
+            if ($jobstatus !== null && $jobstatus->is_completed()) {
+                $jobresult = $jobstatus->result;
+                if (is_string($jobresult)) {
+                    $jobresult = json_decode($jobresult, true);
+                }
+                $resulttype = is_array($jobresult) ? (string) ($jobresult['moduleType'] ?? '') : '';
+                if (
+                    !module_types_service::result_matches_requested_type(
+                        (string) $task->modulename,
+                        $resulttype,
+                        $moodlemodule
+                    )
+                ) {
+                    $errmsg = get_string('error_unsupported_module', 'block_dixeo_modulegen', $resulttype);
+                    queue_service::fail($params['queueid'], $errmsg);
+                    return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
+                }
+                module_addinstance_service::require_for_course((int) $task->courseid, $moodlemodule);
             }
 
             $result = create_module_from_job::execute(
@@ -806,6 +862,8 @@ class api extends external_api {
         $jobservice = service_factory::get_job_service();
         $filljobid = '';
         try {
+            self::authorised_generation_module($courseid, $modulename);
+
             service_factory::get_file_sync_service()->ensure_enabled_and_synchronized(
                 $courseid,
                 (int) $USER->id
