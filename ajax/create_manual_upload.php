@@ -48,6 +48,7 @@ try {
     if (!in_array($modtype, ['scorm', 'resource'], true)) {
         throw new moodle_exception('error_unsupported_module', 'block_dixeo_modulegen', '', $modtype);
     }
+    \local_dixeo\service\module_addinstance_service::require_for_course($courseid, $modtype);
 
     // Defense-in-depth: reject bad uploads/placement early. Type, size and MIME rules stay in local_dixeo.
     $uploadedfile = $_FILES['file'] ?? null;
