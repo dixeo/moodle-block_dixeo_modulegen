@@ -743,6 +743,7 @@
     pointer-events: none;
     border-radius: 2px;
     background-color: var(--dixeo-modulegen-drop-marker, #0f6cbd);
+    box-shadow: 0 0 0 1px #fff;
 }
 
 /*

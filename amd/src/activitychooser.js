@@ -34,12 +34,12 @@ define([
     let courseDropDelegationAttached = false;
 
     /**
-     * True when the page has core course-format activity lists (not formats that replace them entirely).
+     * True when catalogue items can be dropped onto this course page.
      *
      * @returns {boolean}
      */
-    function hasStandardCourseModuleList() {
-        return !!document.querySelector('[data-for="section"] ul[data-for="cmlist"]');
+    function coursePageAcceptsDrops() {
+        return !!document.querySelector('[data-for="section"] ul[data-for="cmlist"], .format-tiles li.tile[data-true-sectionid]');
     }
 
     /** @type {HTMLElement|null} Drop target currently flagged (avoids scanning each dragover). */
@@ -52,7 +52,8 @@ define([
     const CHOOSER_MODAL_OPTION =
         '.optionscontainer .optioninfo a[data-bs-target="#generationModal"], ' +
         '.optionscontainer .optioninfo a[data-bs-target="#manualUploadModal"]';
-    const CM_ITEM = 'li.activity[data-for="cmitem"]';
+    const CM_ITEM = 'li.activity[data-for="cmitem"], .format-tiles li.activity[data-cmid]';
+    const CM_LIST = 'ul[data-for="cmlist"], ul.format-tiles-cm-list';
     /** Block-specific hook for theme/format overrides; deliberately unstyled by default. */
     const DROP_TARGET_CLASS = 'dixeo-modulegen-drop-target';
     /** DataTransfer type that marks a drag started from the catalogue. */
@@ -302,7 +303,7 @@ define([
                 }
 
                 registerCategoryToggles(block);
-                if (hasStandardCourseModuleList()) {
+                if (coursePageAcceptsDrops()) {
                     addDragAndDrop(block);
                 }
 
@@ -367,24 +368,70 @@ define([
     }
 
     /**
+     * Database id of the course section that contains this element.
+     *
+     * Core sections, including tiles while editing, store it as data-id on
+     * [data-for="section"]. Tiles in view mode store it as data-true-sectionid
+     * on the tile, and as data-sectionid on the movable section that holds the
+     * activity list. data-section is the section number there, and data-sectionid
+     * is the section number on the editing template, so those are not read on
+     * elements that already expose data-id.
+     *
+     * @param {HTMLElement} el
+     * @returns {string} course_sections.id, or '' when the element is not in a section.
+     */
+    const courseSectionId = (el) => {
+        const positiveId = (value) => {
+            const id = parseInt(value, 10);
+            return Number.isFinite(id) && id > 0 ? String(id) : '';
+        };
+
+        const core = el.closest('[data-for="section"]');
+        if (core) {
+            return positiveId(core.dataset.id);
+        }
+        const tile = el.closest('li.tile[data-true-sectionid]');
+        if (tile) {
+            return positiveId(tile.dataset.trueSectionid);
+        }
+        const movable = el.closest('.format-tiles li.section[data-sectionid]');
+        if (movable) {
+            return positiveId(movable.dataset.sectionid);
+        }
+        return '';
+    };
+
+    /**
      * Find the id of the last section on the page.
      *
      * @returns {string} The last course_sections id as string, or '0' when the page has no section marker.
      */
     const findLastSectionId = () => {
-        const sections = document.querySelectorAll('[data-for="section"][data-id]');
+        const sections = document.querySelectorAll('[data-for="section"][data-id], .format-tiles li.tile[data-true-sectionid]');
         for (let i = sections.length - 1; i >= 0; i--) {
-            const id = parseInt(sections[i].dataset.id, 10);
-            if (Number.isFinite(id) && id > 0) {
-                return String(id);
+            const id = courseSectionId(sections[i]);
+            if (id) {
+                return id;
             }
         }
         return '0';
     };
 
     /**
-     * Resolve the course-module list item or section header under the cursor.
-     * Uses [data-for="section"] so it works across formats (topics, edai, etc.), not only .course-content.
+     * Course module id stored on an activity list item.
+     *
+     * @param {HTMLElement|null} el
+     * @returns {string}
+     */
+    const activityId = (el) => {
+        if (!el) {
+            return '';
+        }
+        return el.dataset.id || el.dataset.cmid || '';
+    };
+
+    /**
+     * Resolve the activity, activity list, section header, or tile under the cursor.
      *
      * @param {EventTarget|null} eventTarget - Event target from drag events.
      * @returns {HTMLElement|null}
@@ -395,12 +442,29 @@ define([
         }
         const el = /** @type {HTMLElement} */ (eventTarget);
         const activity = el.closest(CM_ITEM);
-        if (activity && activity.closest('[data-for="section"]')) {
+        if (activity && courseSectionId(activity)) {
             return activity;
         }
         const sectionTitle = el.closest('[data-for="section_title"]');
-        if (sectionTitle && sectionTitle.closest('[data-for="section"]')) {
+        if (sectionTitle && courseSectionId(sectionTitle)) {
             return sectionTitle;
+        }
+        const cmlist = el.closest(CM_LIST);
+        if (cmlist && courseSectionId(cmlist)) {
+            return cmlist;
+        }
+        const tile = el.closest('li.tile[data-true-sectionid]');
+        if (tile) {
+            return tile;
+        }
+        const section = el.closest('[data-for="section"]');
+        if (section && courseSectionId(section)) {
+            return section;
+        }
+        // Tiles view stores the database id on the movable section, which has no data-for marker.
+        const tilesSection = el.closest('.format-tiles li.section[data-sectionid]');
+        if (tilesSection && courseSectionId(tilesSection)) {
+            return tilesSection;
         }
         return null;
     };
@@ -513,16 +577,16 @@ define([
         const nextRect = next ? rectOf(next) : null;
         // Activities narrower than half their section flow left to right (grid, tiles, cards), including one
         // alone on its row or in its section; full-width ones stack.
-        const section = target.closest('[data-for="section"]');
+        const section = target.closest('[data-for="section"], .format-tiles li.section, li.tile');
         const horizontal = !!section && rect.width < rectOf(section).width / 2;
         let after = clientY > rect.top + rect.height / 2;
         if (horizontal) {
             after = clientX > rect.left + rect.width / 2;
         }
 
-        let beforeMod = target.dataset.id || '';
+        let beforeMod = activityId(target);
         if (after) {
-            beforeMod = next ? (next.dataset.id || '') : '';
+            beforeMod = next ? activityId(next) : '';
         }
 
         const neighbour = after ? nextRect : prevRect;
@@ -565,8 +629,30 @@ define([
         if (target.matches(CM_ITEM)) {
             return describeDrop(target, clientX, clientY).beforeMod;
         }
-        const next = target.nextElementSibling;
-        return (next && next.dataset && next.dataset.id) ? next.dataset.id : '';
+        return '';
+    };
+
+    /**
+     * Insertion bar for a drop on a section, tile, or activity list rather than one activity.
+     *
+     * The bar sits on the bottom edge of the activity list, or of the tile or section when
+     * that list has no box yet.
+     *
+     * @param {HTMLElement} target - Section, tile, or activity list under the pointer.
+     * @returns {Object}
+     */
+    const describeContainerDrop = (target) => {
+        const list = target.matches(CM_LIST) ? target : target.querySelector(CM_LIST);
+        const listRect = list ? rectOf(list) : null;
+        const box = listRect && listRect.height > 8 ? list : target;
+        const rect = box === list ? listRect : rectOf(box);
+        return {
+            beforeMod: '',
+            horizontal: false,
+            x: rect.left,
+            y: rect.bottom,
+            length: Math.max(rect.width, 48)
+        };
     };
 
     /**
@@ -690,9 +776,8 @@ define([
                 showDropMarker(placement);
                 return;
             }
-            // Section title: appends to the section, so there is no insertion point to draw.
-            pendingBeforeMod = resolveBeforeMod(dropEl, e.clientX, e.clientY);
-            hideDropMarker();
+            pendingBeforeMod = '';
+            showDropMarker(describeContainerDrop(dropEl));
         }, USE_CAPTURE);
 
         document.addEventListener('dragleave', (e) => {
@@ -721,12 +806,12 @@ define([
             }
             clearDropFeedback();
 
-            const section = dropEl.closest('[data-for="section"]');
-            if (!section || section.dataset.id === undefined) {
+            const sectionId = courseSectionId(dropEl);
+            if (!sectionId) {
                 return;
             }
 
-            activeOption.dataset.sectionId = section.dataset.id;
+            activeOption.dataset.sectionId = sectionId;
             activeOption.dataset.beforeMod = beforeMod;
             activeOption.click();
         }, USE_CAPTURE);
