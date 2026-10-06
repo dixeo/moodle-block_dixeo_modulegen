@@ -7,7 +7,7 @@
  * @copyright  2026 Edunao SAS (contact@edunao.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-define(['core_courseformat/courseeditor'], function(CourseEditor) {
+define(['core_courseformat/courseeditor', 'core/fragment', 'core/templates'], function(CourseEditor, Fragment, Templates) {
     'use strict';
 
     /** Activities indexed by the course editor but missing native draggable after a partial refresh. */
@@ -59,11 +59,61 @@ define(['core_courseformat/courseeditor'], function(CourseEditor) {
     };
 
     /**
+     * Replace a tiles view-mode section with the activity list from the server.
+     *
+     * Tiles in standard mode keeps that list in the movable section, loaded through
+     * the format_tiles get_cm_list fragment. The course editor refresh updates the
+     * editing template only, so an open section would stay unchanged until reload.
+     *
+     * @param {number|string} sectionNumber
+     * @returns {boolean} True when this page is showing that tiles section.
+     */
+    const refreshTilesViewSection = (sectionNumber) => {
+        if (!document.body.classList.contains('format-tiles') || document.body.classList.contains('editing')) {
+            return false;
+        }
+        const num = parseInt(sectionNumber, 10);
+        if (!Number.isFinite(num) || num < 0) {
+            return false;
+        }
+        const contentArea = document.getElementById('section-' + num);
+        if (!contentArea || !contentArea.classList.contains('moveablesection')) {
+            return false;
+        }
+        const sectionId = parseInt(contentArea.dataset.sectionid, 10);
+        const contextId = parseInt(M.cfg.contextid, 10);
+        if (!sectionId || !contextId) {
+            return false;
+        }
+
+        Fragment.loadFragment('format_tiles', 'get_cm_list', contextId, {sectionid: sectionId})
+            .done(function(html, js) {
+                if (!html) {
+                    return;
+                }
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = html;
+                const rendered = wrapper.firstElementChild;
+                contentArea.innerHTML = rendered ? rendered.innerHTML : html;
+                if (js) {
+                    Templates.runTemplateJS(js);
+                }
+            })
+            .fail(function() {
+                // The activity is stored; the section list can be opened again.
+            });
+        return true;
+    };
+
+    /**
      * Refresh the course section to show the newly created module.
      *
      * @param {number|string} sectionNumber
      */
     const refreshCourseSection = (sectionNumber) => {
+        if (refreshTilesViewSection(sectionNumber)) {
+            return;
+        }
         try {
             const courseEditor = CourseEditor.getCurrentCourseEditor();
             if (!courseEditor) {
