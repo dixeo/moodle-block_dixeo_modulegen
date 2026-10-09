@@ -59,7 +59,11 @@ final class enabled_gate_test extends \advanced_testcase {
         $config->set('local_dixeo', 'enabled', \context_course::instance($course->id), '0');
         $block->content = null;
         $this->assertNull($block->get_content());
+        $this->assertSame('', $block->title);
+        $this->assertStringNotContainsString('dixeo-block-disabled', $block->html_attributes()['class']);
         $this->assertSame(get_string('disabled_block_course', 'local_dixeo'), $this->editing_text($block));
+        $this->assertSame(get_string('pluginname', 'block_dixeo_modulegen'), $block->title);
+        $this->assertStringContainsString('dixeo-block-disabled', $this->editing_classes($block));
         $PAGE = $this->course_page($course);
         $this->assertStringNotContainsString(
             'block_dixeo_modulegen/activitychooser',
@@ -84,7 +88,11 @@ final class enabled_gate_test extends \advanced_testcase {
         $config->set('local_dixeo', 'enabled', \context_course::instance($course->id), '1');
 
         $this->assertNull($block->get_content());
+        $this->assertSame('', $block->title);
+        $this->assertStringNotContainsString('dixeo-block-disabled', $block->html_attributes()['class']);
         $this->assertSame(get_string('disabled_block_site', 'local_dixeo'), $this->editing_text($block));
+        $this->assertSame(get_string('pluginname', 'block_dixeo_modulegen'), $block->title);
+        $this->assertStringContainsString('dixeo-block-disabled', $this->editing_classes($block));
         $this->assertStringNotContainsString(
             'block_dixeo_modulegen/activitychooser',
             $this->hook_end_code($course)
@@ -108,6 +116,22 @@ final class enabled_gate_test extends \advanced_testcase {
     }
 
     /**
+     * Block classes while the current user is editing the page.
+     *
+     * @param \block_base $block
+     * @return string
+     */
+    private function editing_classes(\block_base $block): string {
+        global $USER;
+        $USER->editing = 1;
+        $classes = $block->html_attributes()['class'];
+        $USER->editing = 0;
+        return $classes;
+    }
+
+    /**
+     * Load the module generator block on a course page.
+     *
      * @param \stdClass $course
      * @return \block_dixeo_modulegen
      */
@@ -148,6 +172,8 @@ final class enabled_gate_test extends \advanced_testcase {
     }
 
     /**
+     * Footer hook output for the course page.
+     *
      * @param \stdClass $course
      * @return string
      */
@@ -163,6 +189,8 @@ final class enabled_gate_test extends \advanced_testcase {
     }
 
     /**
+     * Course page the block can render on.
+     *
      * @param \stdClass $course
      * @return \moodle_page
      */

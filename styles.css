@@ -756,6 +756,11 @@
     margin-top: 25px !important;
 }
 
+/* Disabled editing state uses the tutor's card inset. The live card stays flush. */
+.editing .block_dixeo_modulegen.dixeo-block-disabled > .card-body {
+    padding: 1rem !important;
+}
+
 /* ==========================================================================
    8. MEDIA QUERIES
    ========================================================================== */

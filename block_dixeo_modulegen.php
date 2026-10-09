@@ -89,6 +89,22 @@ class block_dixeo_modulegen extends block_base {
     }
 
     /**
+     * Block attributes.
+     *
+     * The live card removes the Moodle block padding. While editing with Dixeo
+     * off, the block name and explanation use the same inset as the tutor.
+     *
+     * @return array
+     */
+    public function html_attributes(): array {
+        $attributes = parent::html_attributes();
+        if ($this->page->user_is_editing() && !$this->dixeo_is_enabled()) {
+            $attributes['class'] .= ' dixeo-block-disabled';
+        }
+        return $attributes;
+    }
+
+    /**
      * Only one instance per course.
      *
      * @return bool False to prevent multiple instances.
@@ -121,6 +137,8 @@ class block_dixeo_modulegen extends block_base {
             if (!$this->page->user_is_editing()) {
                 return $this->content;
             }
+            // The live card has no Moodle header. Editing with Dixeo off uses the block name.
+            $this->title = get_string('pluginname', 'block_dixeo_modulegen');
             $this->content = new stdClass();
             $this->content->text = $this->disabled_block_text();
             $this->content->footer = '';
