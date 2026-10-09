@@ -116,6 +116,17 @@ class block_dixeo_modulegen extends block_base {
             return $this->content;
         }
 
+        // Dixeo off leaves the block empty, except in editing mode, where it explains why.
+        if (!$this->dixeo_is_enabled()) {
+            if (!$this->page->user_is_editing()) {
+                return $this->content;
+            }
+            $this->content = new stdClass();
+            $this->content->text = $this->disabled_block_text();
+            $this->content->footer = '';
+            return $this->content;
+        }
+
         // Check user capability.
         if (!$this->can_user_view_block($COURSE->id)) {
             return $this->content;
@@ -135,6 +146,38 @@ class block_dixeo_modulegen extends block_base {
         $this->content->text = $OUTPUT->render_from_template('block_dixeo_modulegen/card', []);
 
         return $this->content;
+    }
+
+    /**
+     * Whether Dixeo features run on this block's page.
+     *
+     * A page inside a course uses that course. Any other page uses the Dixeo layer.
+     *
+     * @return bool
+     */
+    private function dixeo_is_enabled(): bool {
+        return \local_dixeo\external\service_factory::get_settings_config()->enabled_for($this->dixeo_page_context());
+    }
+
+    /**
+     * Editing-mode explanation for why this block is hidden.
+     *
+     * @return string
+     */
+    private function disabled_block_text(): string {
+        return \local_dixeo\external\service_factory::get_settings_config()->disabled_block_text($this->dixeo_page_context());
+    }
+
+    /**
+     * Course context for a page inside a course, otherwise the Dixeo layer.
+     *
+     * @return \context
+     */
+    private function dixeo_page_context(): \context {
+        $courseid = (int) ($this->page->course->id ?? 0);
+        return $courseid > SITEID
+            ? \context_course::instance($courseid)
+            : \context_system::instance();
     }
 
     /**
