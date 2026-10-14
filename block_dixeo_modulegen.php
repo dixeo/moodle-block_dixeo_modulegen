@@ -89,6 +89,22 @@ class block_dixeo_modulegen extends block_base {
     }
 
     /**
+     * Block attributes.
+     *
+     * The live card removes the Moodle block padding. While editing with Dixeo
+     * off, the block name and explanation use the same inset as the tutor.
+     *
+     * @return array
+     */
+    public function html_attributes(): array {
+        $attributes = parent::html_attributes();
+        if ($this->page->user_is_editing() && !$this->dixeo_is_enabled()) {
+            $attributes['class'] .= ' dixeo-block-disabled';
+        }
+        return $attributes;
+    }
+
+    /**
      * Only one instance per course.
      *
      * @return bool False to prevent multiple instances.
@@ -116,6 +132,19 @@ class block_dixeo_modulegen extends block_base {
             return $this->content;
         }
 
+        // Dixeo off leaves the block empty, except in editing mode, where it explains why.
+        if (!$this->dixeo_is_enabled()) {
+            if (!$this->page->user_is_editing()) {
+                return $this->content;
+            }
+            // The live card has no Moodle header. Editing with Dixeo off uses the block name.
+            $this->title = get_string('pluginname', 'block_dixeo_modulegen');
+            $this->content = new stdClass();
+            $this->content->text = $this->disabled_block_text();
+            $this->content->footer = '';
+            return $this->content;
+        }
+
         // Check user capability.
         if (!$this->can_user_view_block($COURSE->id)) {
             return $this->content;
@@ -135,6 +164,38 @@ class block_dixeo_modulegen extends block_base {
         $this->content->text = $OUTPUT->render_from_template('block_dixeo_modulegen/card', []);
 
         return $this->content;
+    }
+
+    /**
+     * Whether Dixeo features run on this block's page.
+     *
+     * A page inside a course uses that course. Any other page uses the Dixeo layer.
+     *
+     * @return bool
+     */
+    private function dixeo_is_enabled(): bool {
+        return \local_dixeo\external\service_factory::get_settings_config()->enabled_for($this->dixeo_page_context());
+    }
+
+    /**
+     * Editing-mode explanation for why this block is hidden.
+     *
+     * @return string
+     */
+    private function disabled_block_text(): string {
+        return \local_dixeo\external\service_factory::get_settings_config()->disabled_block_text($this->dixeo_page_context());
+    }
+
+    /**
+     * Course context for a page inside a course, otherwise the Dixeo layer.
+     *
+     * @return \context
+     */
+    private function dixeo_page_context(): \context {
+        $courseid = (int) ($this->page->course->id ?? 0);
+        return $courseid > SITEID
+            ? \context_course::instance($courseid)
+            : \context_system::instance();
     }
 
     /**
@@ -167,7 +228,7 @@ class block_dixeo_modulegen extends block_base {
      * @return bool True on success, false on failure.
      */
     public function instance_create(): bool {
-        global $DB, $USER;
+        global $DB;
 
         $bi = $DB->get_record('block_instances', ['id' => $this->instance->id]);
         if (!$bi) {
@@ -178,18 +239,6 @@ class block_dixeo_modulegen extends block_base {
         $bi->pagetypepattern = self::DEFAULT_PAGETYPE_PATTERN;
         $bi->defaultweight = self::DEFAULT_WEIGHT;
 
-        $updated = $DB->update_record('block_instances', $bi);
-
-        $courseid = \local_dixeo\service\file_sync_policy::resolve_courseid_from_block_parent(
-            (int) $this->instance->parentcontextid
-        );
-        if ($courseid !== null) {
-            \local_dixeo\external\service_factory::get_file_sync_service()->opt_in_on_block_added(
-                $courseid,
-                (int) $USER->id
-            );
-        }
-
-        return $updated;
+        return $DB->update_record('block_instances', $bi);
     }
 }
