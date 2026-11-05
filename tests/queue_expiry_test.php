@@ -45,6 +45,7 @@ final class queue_expiry_test extends \advanced_testcase {
 
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $courseid = (int) $this->getDataGenerator()->create_course()->id;
         $now = time();
         $staleprocessing = $this->insert_row($courseid, queue_status::STATUS_PROCESSING, $now - DAYSECS, $now - 7 * HOURSECS);
@@ -77,6 +78,7 @@ final class queue_expiry_test extends \advanced_testcase {
     public function test_claim_fails_a_stale_processing_row_and_promotes_the_next_pending_row(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $courseid = (int) $this->getDataGenerator()->create_course()->id;
         $now = time();
         $stale = $this->insert_row($courseid, queue_status::STATUS_PROCESSING, $now - DAYSECS, $now - 7 * HOURSECS);
@@ -102,6 +104,7 @@ final class queue_expiry_test extends \advanced_testcase {
     public function test_create_fails_a_row_whose_type_is_no_longer_supported(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $courseid = (int) $this->getDataGenerator()->create_course()->id;
         $queueid = $this->insert_row($courseid, queue_status::STATUS_PROCESSING, time(), time(), 'notamodule');
 
@@ -122,6 +125,7 @@ final class queue_expiry_test extends \advanced_testcase {
         accesslib_clear_all_caches_for_unit_testing();
         $queueid = $this->insert_row((int) $course->id, queue_status::STATUS_PROCESSING, time(), time());
         $this->setUser($teacher);
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $teacher->id]);
 
         try {
             api::create_module_for_task($queueid);

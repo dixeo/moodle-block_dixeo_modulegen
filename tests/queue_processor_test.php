@@ -107,6 +107,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
         $userid = (int) get_admin()->id;
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $userid]);
 
         $syncmock = $this->createMock(file_sync_service::class);
         $syncmock->expects($this->once())
@@ -146,6 +147,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
         $userid = (int) get_admin()->id;
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $userid]);
 
         $syncmock = $this->createMock(file_sync_service::class);
         $syncmock->expects($this->once())->method('ensure_enabled_and_synchronized');
@@ -189,6 +191,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
         $userid = (int) get_admin()->id;
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $userid]);
 
         $record = queue_repository::create_base_record(
             (int) $course->id,
@@ -242,6 +245,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
         $userid = (int) get_admin()->id;
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $userid]);
 
         $syncmock = $this->createMock(file_sync_service::class);
         $syncmock->expects($this->once())->method('ensure_enabled_and_synchronized');
@@ -362,6 +366,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->resetAfterTest(true);
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $teacher->id]);
         $queueid = $this->insert_pending((int) $course->id, (int) $teacher->id);
         $this->setAdminUser();
 
@@ -407,6 +412,28 @@ final class queue_processor_test extends advanced_testcase {
         $this->assertNull(queue_service::process_next_pending((int) $course->id));
 
         $this->assert_failed_with($queueid, get_string('error:generation_not_allowed', 'local_dixeo'));
+    }
+
+    public function test_row_of_a_teacher_without_accepted_terms_is_failed_without_sending(): void {
+        $this->resetAfterTest(true);
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $queueid = $this->insert_pending((int) $course->id, (int) $teacher->id);
+        $this->setAdminUser();
+        $this->expect_nothing_sent();
+        $sink = $this->redirectEvents();
+
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
+
+        $this->assert_failed_with($queueid, get_string('error:consentrequired', 'local_dixeo'));
+        $failed = array_values(array_filter(
+            $sink->get_events(),
+            fn($event) => $event instanceof \block_dixeo_modulegen\event\queue_task_failed
+        ));
+        $sink->close();
+        $this->assertCount(1, $failed);
+        $this->assertSame(\block_dixeo_modulegen\event\queue_task_failed::REASON_NOT_ALLOWED, $failed[0]->other['reason']);
+        $this->assertSame((int) $teacher->id, (int) $failed[0]->userid);
     }
 
     public function test_row_is_failed_without_sending_when_dixeo_is_off(): void {

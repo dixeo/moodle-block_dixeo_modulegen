@@ -114,13 +114,14 @@ final class input_limits_test extends \advanced_testcase {
     }
 
     /**
-     * Create a course and log in as the administrator.
+     * Create a course and log in as the administrator, who accepted the Dixeo terms.
      *
      * @return \stdClass
      */
     private function course_as_admin(): \stdClass {
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         return $this->getDataGenerator()->create_course();
     }
 }

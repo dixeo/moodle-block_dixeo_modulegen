@@ -79,13 +79,14 @@ final class modulegen_events_test extends \advanced_testcase {
     }
 
     /**
-     * Create a course with an enrolled editing teacher and set current user.
+     * Create a course with an enrolled editing teacher who accepted the Dixeo terms, and set current user.
      *
      * @return array{0: \stdClass, 1: \stdClass}
      */
     private function create_course_and_editor(): array {
         $course = $this->getDataGenerator()->create_course();
         $user = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $user->id]);
         $this->setUser($user);
         return [$course, $user];
     }

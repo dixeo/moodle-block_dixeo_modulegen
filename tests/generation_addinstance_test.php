@@ -55,6 +55,7 @@ final class generation_addinstance_test extends \advanced_testcase {
         assign_capability('mod/page:addinstance', CAP_ALLOW, $roleid, $context->id, true);
         role_assign($roleid, $user->id, $context->id);
         $this->setUser($user);
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $user->id]);
 
         $denied = api::submit_generation((int) $course->id, 'quiz', 'Make a quiz');
         $this->assertFalse($denied['success']);
@@ -73,6 +74,7 @@ final class generation_addinstance_test extends \advanced_testcase {
         $course = $generator->create_course();
         $user = $generator->create_and_enrol($course, 'editingteacher');
         $this->setUser($user);
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => $user->id]);
 
         $jobid = \core\uuid::generate();
         $record = queue_repository::create_base_record((int) $course->id, 'page', 'Prompt', 0, null, 'en');

@@ -57,6 +57,7 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
 
         $this->resetAfterTest(true);
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $course = $this->getDataGenerator()->create_course();
         $queueid = $this->insert_failed_fill_row((int) $course->id);
 
@@ -106,6 +107,7 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
 
         $this->resetAfterTest(true);
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $course = $this->getDataGenerator()->create_course();
         $queueid = $this->insert_failed_fill_row((int) $course->id);
 
@@ -131,6 +133,7 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
     public function test_retry_rejects_task_from_another_course(): void {
         $this->resetAfterTest(true);
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $course = $this->getDataGenerator()->create_course();
         $other = $this->getDataGenerator()->create_course();
         $queueid = $this->insert_failed_fill_row((int) $course->id);
@@ -146,6 +149,7 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
 
         $this->resetAfterTest(true);
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $course = $this->getDataGenerator()->create_course();
         $queueid = $this->insert_failed_fill_row((int) $course->id);
         $this->mock_fill_job((int) $course->id, 'quiz');
@@ -172,6 +176,7 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
 
         $this->resetAfterTest(true);
         $this->setAdminUser();
+        $this->getDataGenerator()->get_plugin_generator('local_dixeo')->create_terms_acceptance(['userid' => get_admin()->id]);
         $course = $this->getDataGenerator()->create_course();
         $queueid = $this->insert_failed_fill_row((int) $course->id);
         $this->mock_fill_job((int) $course->id, 'page');
