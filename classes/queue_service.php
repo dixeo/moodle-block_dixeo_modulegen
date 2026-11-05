@@ -29,6 +29,7 @@
 
 namespace block_dixeo_modulegen;
 
+use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
 use local_dixeo\api\exception\api_exception;
@@ -261,7 +262,7 @@ class queue_service {
             $userid = self::resolve_submitter_userid($task);
             $reason = generation_access::denial_reason($userid, $courseid, (string) $task->modulename);
             if ($reason !== null) {
-                self::fail_task_with_error($task, (string) $reason);
+                self::fail_task_with_error($task, (string) $reason, $userid, queue_task_failed::REASON_NOT_ALLOWED);
                 continue;
             }
 
@@ -270,7 +271,12 @@ class queue_service {
                 try {
                     service_factory::get_file_sync_service()->ensure_enabled_and_synchronized($courseid, $userid);
                 } catch (\Throwable $e) {
-                    self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+                    self::fail_task_with_error(
+                        $task,
+                        exception_message::format_for_queue($e, 'generationfailed'),
+                        $userid,
+                        queue_task_failed::REASON_SYNC
+                    );
                     continue;
                 }
 
@@ -282,7 +288,12 @@ class queue_service {
                         section_resolver::get_number($courseid, (int) ($task->sectionid ?? 0))
                     );
                 } catch (\Throwable $e) {
-                    self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+                    self::fail_task_with_error(
+                        $task,
+                        exception_message::format_for_queue($e, 'generationfailed'),
+                        $userid,
+                        queue_task_failed::REASON_SUBMIT
+                    );
                     continue;
                 }
             } finally {
@@ -314,6 +325,8 @@ class queue_service {
      * @return object|null The claimed task, already PROCESSING with an empty jobid, or null.
      */
     private static function claim_next_pending(int $courseid): ?object {
+        global $USER;
+
         $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
         $lock = $lockfactory->get_lock('course_' . $courseid, self::CLAIM_LOCK_TIMEOUT);
         if (!$lock) {
@@ -334,7 +347,7 @@ class queue_service {
 
                 $rejection = self::pending_rejection_reason($task);
                 if ($rejection !== null) {
-                    self::fail_task_with_error($task, $rejection);
+                    self::fail_task_with_error($task, $rejection, (int) $USER->id, queue_task_failed::REASON_NOT_ALLOWED);
                     continue;
                 }
 
@@ -382,6 +395,8 @@ class queue_service {
      * @return int Number of rows failed, at most 500 per call.
      */
     public static function expire_stale(int $now, ?int $courseid = null): int {
+        global $USER;
+
         $tasks = queue_repository::get_stale(
             $now - self::STALE_PROCESSING_SECS,
             $now - self::STALE_PENDING_SECS,
@@ -398,22 +413,26 @@ class queue_service {
             $task->timecompleted = $now;
             self::update_task_params($task, ['error' => $error]);
             queue_repository::update($task);
+            queue_task_failed::create_from_task($task, (int) ($USER->id ?? 0), queue_task_failed::REASON_STALE)->trigger();
         }
 
         return count($tasks);
     }
 
     /**
-     * Mark a task failed with an error message stored in params.
+     * Mark a task failed with an error message stored in params, and log the failure.
      *
      * @param object $task Queue row.
      * @param string $error Error message.
+     * @param int $userid User the task ran for, or the cron user when there is none.
+     * @param string $reason One of the queue_task_failed::REASON_* codes.
      * @return void
      */
-    private static function fail_task_with_error(object $task, string $error): void {
+    private static function fail_task_with_error(object $task, string $error, int $userid, string $reason): void {
         self::finalize_task($task, queue_status::STATUS_FAILED, function ($task) use ($error) {
             self::update_task_params($task, ['error' => $error]);
         });
+        queue_task_failed::create_from_task($task, $userid, $reason)->trigger();
     }
 
     /**

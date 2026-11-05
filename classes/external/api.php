@@ -46,6 +46,7 @@ use block_dixeo_modulegen\queue_task_mode;
 use block_dixeo_modulegen\section_resolver;
 use block_dixeo_modulegen\event\fill_task_retried;
 use block_dixeo_modulegen\event\queue_task_cancelled;
+use block_dixeo_modulegen\event\queue_task_completed;
 use block_dixeo_modulegen\event\queue_task_deleted;
 use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\event\queue_task_submitted;
@@ -625,7 +626,7 @@ class api extends external_api {
             $moodlemodule = service_factory::get_module_types_service()->resolve_generation_module((string) $task->modulename);
             if ($moodlemodule === null) {
                 $errmsg = get_string('error_unsupported_module', 'block_dixeo_modulegen', (string) $task->modulename);
-                queue_service::fail($params['queueid'], $errmsg);
+                self::fail_and_log($params['queueid'], $errmsg, queue_task_failed::REASON_NOT_ALLOWED);
                 return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
             }
             module_addinstance_service::require_for_course((int) $task->courseid, $moodlemodule);
@@ -660,11 +661,19 @@ class api extends external_api {
                     );
                 }
                 $errmsg = get_string('generationfailed', 'block_dixeo_modulegen');
-                queue_service::fail($params['queueid'], $errmsg);
+                $reason = $errorcode === 'module_type_mismatch'
+                    ? queue_task_failed::REASON_TYPE_MISMATCH
+                    : queue_task_failed::REASON_CREATE;
+                self::fail_and_log($params['queueid'], $errmsg, $reason);
                 return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
             }
 
-            queue_service::complete($params['queueid'], (int) $result['cmid']);
+            if (queue_service::complete($params['queueid'], (int) $result['cmid'])) {
+                $completed = queue_repository::get_by_id($params['queueid']);
+                if ($completed) {
+                    queue_task_completed::create_from_task($completed, (int) $USER->id, (int) $result['cmid'])->trigger();
+                }
+            }
 
             return [
                 'success' => true,
@@ -676,6 +685,26 @@ class api extends external_api {
             ];
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * Fail a processing row and log the failure for the current user.
+     *
+     * @param int $queueid Queue row id.
+     * @param string $error Message stored on the row.
+     * @param string $reason One of the queue_task_failed::REASON_* codes.
+     * @return void
+     */
+    private static function fail_and_log(int $queueid, string $error, string $reason): void {
+        global $USER;
+
+        if (!queue_service::fail($queueid, $error)) {
+            return;
+        }
+        $failed = queue_repository::get_by_id($queueid);
+        if ($failed) {
+            queue_task_failed::create_from_task($failed, (int) $USER->id, $reason)->trigger();
         }
     }
 
@@ -804,7 +833,16 @@ class api extends external_api {
         $errormessage = !empty($out['error'])
             ? (string) $out['error']
             : get_string('retry_fill_failed', 'block_dixeo_modulegen');
-        queue_service::fail_fill_retry($params['queueid'], $errormessage);
+        if (queue_service::fail_fill_retry($params['queueid'], $errormessage)) {
+            $failed = queue_repository::get_by_id($params['queueid']);
+            if ($failed) {
+                queue_task_failed::create_from_task(
+                    $failed,
+                    (int) $USER->id,
+                    (string) ($out['reason'] ?? queue_task_failed::REASON_SUBMIT)
+                )->trigger();
+            }
+        }
 
         return [
             'success' => false,
@@ -857,7 +895,8 @@ class api extends external_api {
      * @param string $filldisplaytitle Display title used for the fill job.
      * @param string|null $nameoverride Optional activity name override.
      * @param string $summaryraw Fill summary payload.
-     * @return array{success: bool, cmid: int, error: string, fill_jobid: string}
+     * @return array{success: bool, cmid: int, error: string, fill_jobid: string, reason: string} The reason is a
+     *     queue_task_failed::REASON_* code when the fill failed.
      */
     private static function run_fill_retry_pipeline(
         string $modulename,
@@ -875,14 +914,17 @@ class api extends external_api {
             ->set_component('block_dixeo_modulegen');
         $jobservice = service_factory::get_job_service();
         $filljobid = '';
+        $reason = queue_task_failed::REASON_NOT_ALLOWED;
         try {
             self::authorised_generation_module($courseid, $modulename);
 
+            $reason = queue_task_failed::REASON_SYNC;
             service_factory::get_file_sync_service()->ensure_enabled_and_synchronized(
                 $courseid,
                 (int) $USER->id
             );
 
+            $reason = queue_task_failed::REASON_SUBMIT;
             $operation = $moduleservice->submit_fill_job_for_course(
                 $modulename,
                 $instructions,
@@ -900,9 +942,11 @@ class api extends external_api {
                     'cmid' => 0,
                     'error' => get_string('retry_fill_timeout', 'block_dixeo_modulegen'),
                     'fill_jobid' => $filljobid,
+                    'reason' => $reason,
                 ];
             }
 
+            $reason = queue_task_failed::REASON_CREATE;
             $introoverride = $summaryraw !== '' ? format_text($summaryraw, FORMAT_PLAIN) : '';
 
             $result = create_module_from_job::execute(
@@ -920,6 +964,7 @@ class api extends external_api {
                     'cmid' => 0,
                     'error' => get_string('retry_fill_createfailed', 'block_dixeo_modulegen'),
                     'fill_jobid' => $filljobid,
+                    'reason' => $reason,
                 ];
             }
 
@@ -928,6 +973,7 @@ class api extends external_api {
                 'cmid' => (int) ($result['cmid'] ?? 0),
                 'error' => '',
                 'fill_jobid' => $filljobid,
+                'reason' => '',
             ];
         } catch (\Throwable $e) {
             return [
@@ -935,6 +981,7 @@ class api extends external_api {
                 'cmid' => 0,
                 'error' => exception_message::format_for_client($e, 'retry_fill_failed'),
                 'fill_jobid' => $filljobid,
+                'reason' => $reason,
             ];
         }
     }

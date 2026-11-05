@@ -25,9 +25,28 @@
 namespace block_dixeo_modulegen\event;
 
 /**
- * Fired after a processing generate task is marked failed.
+ * Fired after a queue task is marked failed.
+ *
+ * The optional reason in other['reason'] is one of the REASON_* codes; no error text is stored.
  */
 class queue_task_failed extends queue_task_base {
+    /** @var string The completed job describes another activity type than the one requested. */
+    public const REASON_TYPE_MISMATCH = 'type_mismatch';
+
+    /** @var string The task did not finish in time. */
+    public const REASON_STALE = 'stale';
+
+    /** @var string The submitter may no longer generate this activity, or Dixeo is off. */
+    public const REASON_NOT_ALLOWED = 'not_allowed';
+
+    /** @var string Course file sync failed before submission. */
+    public const REASON_SYNC = 'sync_failed';
+
+    /** @var string Submitting the job to Dixeo, or waiting for its result, failed. */
+    public const REASON_SUBMIT = 'submit_failed';
+
+    /** @var string The activity could not be created from the job result. */
+    public const REASON_CREATE = 'create_failed';
     /**
      * Init method.
      */
@@ -65,13 +84,15 @@ class queue_task_failed extends queue_task_base {
      * Create an event for a failed queue task.
      *
      * @param object $task Queue row.
-     * @param int $userid User who reported the failure.
+     * @param int $userid User who reported the failure, or for whom the task ran.
+     * @param string|null $reason One of the REASON_* codes, or null when the client reported the failure.
      * @return self
      */
-    public static function create_from_task(object $task, int $userid): self {
+    public static function create_from_task(object $task, int $userid, ?string $reason = null): self {
         $jobid = trim((string) ($task->jobid ?? ''));
         return self::create(self::build_queue_task_data($task, $userid, [
             'jobid' => $jobid !== '' ? $jobid : null,
+            'reason' => $reason,
         ]));
     }
 }
