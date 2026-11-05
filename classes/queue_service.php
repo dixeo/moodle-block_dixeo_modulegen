@@ -32,6 +32,7 @@ namespace block_dixeo_modulegen;
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
 use local_dixeo\api\exception\api_exception;
+use local_dixeo\util\input_limits;
 
 /**
  * Service class for queue business logic.
@@ -545,23 +546,24 @@ class queue_service {
         ?int $submittedby = null
     ): int {
         $lang = current_language();
+        $title = self::log_title($displaytitle);
         $record = queue_repository::create_base_record(
             $courseid,
             $modulename,
-            $instructions,
+            self::log_text($instructions),
             section_resolver::get_id($courseid, $sectionnumber) ?: null,
             $beforemod,
             $lang
         );
-        $record->title = clean_param($displaytitle, PARAM_TEXT);
+        $record->title = $title;
         $record->status = queue_status::STATUS_COMPLETED;
         $record->cmid = $cmid;
         $jobid = $filljobid !== '' ? $filljobid : \core\uuid::generate();
         $record->jobid = $jobid;
         $record->timecompleted = time();
         $record->params = json_encode(self::fill_params_payload(
-            $displaytitle,
-            $summaryraw,
+            $title,
+            self::log_text($summaryraw),
             $jobid,
             null,
             self::resolve_submittedby_for_logging($submittedby)
@@ -593,6 +595,7 @@ class queue_service {
         ?int $submittedby = null
     ): int {
         $lang = current_language();
+        $title = self::log_title($displaytitle);
         $record = queue_repository::create_base_record(
             $courseid,
             $modulename,
@@ -601,14 +604,14 @@ class queue_service {
             $beforemod,
             $lang
         );
-        $record->title = clean_param($displaytitle, PARAM_TEXT);
+        $record->title = $title;
         $record->status = queue_status::STATUS_COMPLETED;
         $record->cmid = $cmid;
         $jobid = \core\uuid::generate();
         $record->jobid = $jobid;
         $record->timecompleted = time();
         $record->params = json_encode(self::manual_params_payload(
-            $displaytitle,
+            $title,
             $filename,
             $jobid,
             self::resolve_submittedby_for_logging($submittedby)
@@ -644,23 +647,24 @@ class queue_service {
         ?int $submittedby = null
     ): int {
         $lang = current_language();
+        $title = self::log_title($displaytitle);
         $record = queue_repository::create_base_record(
             $courseid,
             $modulename,
-            $instructions,
+            self::log_text($instructions),
             section_resolver::get_id($courseid, $sectionnumber) ?: null,
             $beforemod,
             $lang
         );
-        $record->title = clean_param($displaytitle, PARAM_TEXT);
+        $record->title = $title;
         $record->status = queue_status::STATUS_FAILED;
         $record->cmid = 0;
         $jobid = $filljobid !== '' ? $filljobid : \core\uuid::generate();
         $record->jobid = $jobid;
         $record->timecompleted = time();
         $record->params = json_encode(self::fill_params_payload(
-            $displaytitle,
-            $summaryraw,
+            $title,
+            self::log_text($summaryraw),
             $filljobid !== '' ? $filljobid : $jobid,
             $errormessage,
             self::resolve_submittedby_for_logging($submittedby)
@@ -753,6 +757,28 @@ class queue_service {
         $updated = queue_repository::update($task);
         self::schedule_queue_processing((int) $task->courseid);
         return $updated;
+    }
+
+    /**
+     * Title of a log row, cut to the title column.
+     *
+     * Log rows record what happened and never fail their caller, so values are cut, not refused.
+     *
+     * @param string $title Display title.
+     * @return string Plain text of at most 255 characters.
+     */
+    private static function log_title(string $title): string {
+        return \core_text::substr(clean_param($title, PARAM_TEXT), 0, 255);
+    }
+
+    /**
+     * Fill instructions or summary of a log row, cut to the Dixeo instructions limit.
+     *
+     * @param string $text Instructions or summary.
+     * @return string Text of at most {@see input_limits::MAX_INSTRUCTIONS_CHARS} characters.
+     */
+    private static function log_text(string $text): string {
+        return \core_text::substr($text, 0, input_limits::MAX_INSTRUCTIONS_CHARS);
     }
 
     /**

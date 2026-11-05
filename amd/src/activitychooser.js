@@ -262,8 +262,9 @@ define([
      * @method init
      * @param {Number} courseId - Course ID to use later on in fetchModules()
      * @param {Object} [manualUploadConfig] - Manual upload config from PHP.
+     * @param {Number} [maxInstructions] - Maximum characters of generation instructions.
      */
-    async function init(courseId, manualUploadConfig) {
+    async function init(courseId, manualUploadConfig, maxInstructions) {
         const available = await getAvailableModules(courseId);
 
         course = courseId;
@@ -282,6 +283,7 @@ define([
                 categories: categories,
                 sectionid: findLastSectionId(),
                 origin: origin,
+                maxinstructions: maxInstructions || 0,
                 config: {wwwroot: M.cfg.wwwroot},
                 generationtitle: ''
             };

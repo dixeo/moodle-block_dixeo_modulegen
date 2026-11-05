@@ -57,6 +57,7 @@ use local_dixeo\external\service_factory;
 use local_dixeo\external\traits\capability_check;
 use local_dixeo\service\module_addinstance_service;
 use local_dixeo\service\module_types_service;
+use local_dixeo\util\input_limits;
 
 /**
  * Unified external API class for module generation.
@@ -171,7 +172,7 @@ class api extends external_api {
             'instructions' => new external_value(PARAM_RAW, 'Instructions for the AI'),
             'sectionid' => new external_value(PARAM_INT, 'Target course section id (0 = last section)', VALUE_DEFAULT, 0),
             'beforemod' => new external_value(PARAM_INT, 'Insert before this module ID', VALUE_DEFAULT, 0),
-            'lang' => new external_value(PARAM_TEXT, 'Language code', VALUE_DEFAULT, ''),
+            'lang' => new external_value(PARAM_LANG, 'Language code', VALUE_DEFAULT, ''),
         ]);
     }
 
@@ -211,13 +212,24 @@ class api extends external_api {
 
         self::validate_course_capability($params['courseid'], true);
 
+        $instructions = trim((string) $params['instructions']);
+        if ($instructions === '') {
+            throw new \invalid_parameter_exception('instructions');
+        }
+        input_limits::require_max_chars(
+            $instructions,
+            input_limits::MAX_INSTRUCTIONS_CHARS,
+            'error:instructions_too_long',
+            'local_dixeo'
+        );
+
         try {
             self::authorised_generation_module((int) $params['courseid'], (string) $params['modulename']);
 
             $result = queue_service::submit(
                 $params['courseid'],
                 $params['modulename'],
-                $params['instructions'],
+                $instructions,
                 $params['sectionid'] ?: null,
                 $params['beforemod'] ?: null,
                 $params['lang']

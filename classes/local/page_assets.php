@@ -25,6 +25,7 @@
 namespace block_dixeo_modulegen\local;
 
 use block_dixeo_modulegen\manual_upload_context;
+use local_dixeo\util\input_limits;
 
 /**
  * Page asset registration for the module generator block.
@@ -114,7 +115,11 @@ class page_assets {
             $page->requires->js_call_amd(
                 'block_dixeo_modulegen/activitychooser',
                 'init',
-                [(int) $page->course->id, manual_upload_context::get_js_config()]
+                [
+                    (int) $page->course->id,
+                    manual_upload_context::get_js_config(),
+                    input_limits::MAX_INSTRUCTIONS_CHARS,
+                ]
             );
             return;
         }

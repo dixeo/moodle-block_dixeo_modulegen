@@ -12,6 +12,7 @@
         "origin": "chooser",
         "courseid": 2,
         "sectionid": 42,
+        "maxinstructions": 10000,
         "config": {
             "wwwroot": "https://example.com"
         }
@@ -32,6 +33,7 @@
                 class="form-control"
                 rows="4"
                 placeholder="{{#str}}prompt_placeholder, block_dixeo_modulegen{{/str}}"
+                {{#maxinstructions}}maxlength="{{maxinstructions}}"{{/maxinstructions}}
                 required></textarea>
             <p class="form-text text-muted small mb-0 mt-2">{{#str}}privacy:notice:avoidpersonaldata, block_dixeo_modulegen{{/str}}</p>
         </div>
