@@ -46,16 +46,42 @@ namespace block_dixeo_modulegen;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class queue_presenter {
+    /** @var string[] Task fields returned to the browser. */
+    private const DISPLAY_FIELDS = [
+        'id',
+        'courseid',
+        'modulename',
+        'title',
+        'instructions',
+        'status',
+        'statuslabel',
+        'jobid',
+        'cmid',
+        'sectionid',
+        'beforemod',
+        'link',
+        'displaytitle',
+        'completedonshort',
+        'timestamp',
+        'timecreated',
+        'timestarted',
+        'timecompleted',
+        'sortorder',
+        'lang',
+        'queuemode',
+    ];
+
     /** @var array<string, array>|null Per-request memo of type rows indexed by type identifier. */
     private static ?array $typeindex = null;
 
     /**
      * Format a single task record for display.
      *
-     * Adds link, title, statuslabel, timestamp, and job_id fields.
+     * Adds link, title, statuslabel, timestamp, and job_id fields. Only the fields listed in
+     * {@see self::DISPLAY_FIELDS} are returned: params and description stay on the server.
      *
      * @param object $task The raw task record from database.
-     * @return object The enriched task record for display.
+     * @return object The display fields of the task.
      */
     public static function format_task(object $task): object {
         $modulename = $task->modulename;
@@ -120,7 +146,13 @@ class queue_presenter {
         $task->jobid = $task->jobid ?: ($params['jobid'] ?? null);
         $task->queuemode = queue_task_mode::from_params($task->params ?? null);
 
-        return $task;
+        $display = new \stdClass();
+        foreach (self::DISPLAY_FIELDS as $field) {
+            if (property_exists($task, $field)) {
+                $display->$field = $task->$field;
+            }
+        }
+        return $display;
     }
 
     /**

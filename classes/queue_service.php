@@ -630,7 +630,7 @@ class queue_service {
      * @param string $displaytitle Display title for the queue row.
      * @param string $summaryraw Fill summary payload stored in params.
      * @param string $filljobid Dixeo fill job id (generated if empty).
-     * @param string $errormessage Failure message stored in params.
+     * @param string $errormessage Not stored: the row always records the generic generation failure message.
      * @param int|null $submittedby User who submitted the fill request (defaults to current user).
      * @return int Inserted queue row id.
      */
@@ -666,7 +666,7 @@ class queue_service {
             $title,
             self::log_text($summaryraw),
             $filljobid !== '' ? $filljobid : $jobid,
-            $errormessage,
+            get_string('generationfailed', 'block_dixeo_modulegen'),
             self::resolve_submittedby_for_logging($submittedby)
         ));
         return queue_repository::insert($record);

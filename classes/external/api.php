@@ -342,9 +342,7 @@ class api extends external_api {
             'timecreated' => new external_value(PARAM_INT, 'Creation time', VALUE_OPTIONAL),
             'timestarted' => new external_value(PARAM_INT, 'Start time', VALUE_OPTIONAL),
             'timecompleted' => new external_value(PARAM_INT, 'Completion time', VALUE_OPTIONAL),
-            'params' => new external_value(PARAM_RAW, 'JSON params', VALUE_OPTIONAL),
             'sortorder' => new external_value(PARAM_INT, 'Sort order (deprecated)', VALUE_OPTIONAL),
-            'description' => new external_value(PARAM_RAW, 'Description', VALUE_OPTIONAL),
             'lang' => new external_value(PARAM_TEXT, 'Language', VALUE_OPTIONAL),
             'queuemode' => new external_value(PARAM_ALPHA, 'Task mode: generate, fill, or manual', VALUE_OPTIONAL),
         ], 'Task record');
