@@ -27,9 +27,12 @@
 namespace block_dixeo_modulegen;
 
 use advanced_testcase;
+use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\external\api;
+use local_dixeo\dto\job_status;
 use local_dixeo\dto\operation_result;
 use local_dixeo\external\service_factory;
+use local_dixeo\repository\job_repository;
 use local_dixeo\service\file_sync_service;
 use local_dixeo\service\job_service;
 use local_dixeo\service\module_generation_service;
@@ -136,6 +139,113 @@ final class queue_fill_retry_claim_test extends advanced_testcase {
 
         $this->assertFalse($result['success']);
         $this->assertSame(get_string('retry_fill_notfound', 'block_dixeo_modulegen'), $result['message']);
+    }
+
+    public function test_retry_with_result_of_another_type_fails_the_row(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $queueid = $this->insert_failed_fill_row((int) $course->id);
+        $this->mock_fill_job((int) $course->id, 'quiz');
+
+        $sink = $this->redirectEvents();
+        $result = api::retry_fill_task($queueid, (int) $course->id);
+        $events = array_values(array_filter(
+            $sink->get_events(),
+            static fn($event) => $event instanceof queue_task_failed
+        ));
+        $sink->close();
+        $this->resetDebugging();
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $DB->count_records('course_modules', ['course' => $course->id]));
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
+        $this->assertCount(1, $events);
+        $this->assertSame(queue_task_failed::REASON_TYPE_MISMATCH, $events[0]->other['reason']);
+    }
+
+    public function test_retry_with_result_of_the_row_type_creates_the_activity(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $queueid = $this->insert_failed_fill_row((int) $course->id);
+        $this->mock_fill_job((int) $course->id, 'page');
+
+        $result = api::retry_fill_task($queueid, (int) $course->id);
+        $this->resetDebugging();
+
+        $this->assertTrue($result['success']);
+        $this->assertGreaterThan(0, (int) $result['cmid']);
+        $this->assertSame(1, $DB->count_records('course_modules', ['course' => $course->id]));
+        $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
+        $this->assertSame(queue_status::STATUS_COMPLETED, (int) $row->status);
+    }
+
+    /**
+     * Mock file sync and fill submission, and serve a completed fill job bound to the course.
+     *
+     * The job service is real, so waiting for the job and creating the module read the same status.
+     *
+     * @param int $courseid Course id.
+     * @param string $moduletype moduleType reported by the job result.
+     * @return void
+     */
+    private function mock_fill_job(int $courseid, string $moduletype): void {
+        service_factory::set_test_file_sync_service($this->createMock(file_sync_service::class));
+
+        $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
+        $modulemock->method('submit_fill_job_for_course')
+            ->willReturn(operation_result::pending(self::FILL_JOB_ID));
+        service_factory::set_test_module_generation_service($modulemock);
+
+        $repo = new job_repository();
+        $repo->register(
+            self::FILL_JOB_ID,
+            $courseid,
+            (int) get_admin()->id,
+            'default',
+            'fill_module',
+            null,
+            null,
+            \local_dixeo\job_access_mode::COURSE_SHARED
+        );
+        $poller = $this->getMockBuilder(\local_dixeo\api\job_poller::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_job_status', 'sleep'])
+            ->getMock();
+        $poller->method('get_job_status')->willReturn(new job_status(
+            jobid: self::FILL_JOB_ID,
+            type: 'module',
+            status: 'completed',
+            progress: 100,
+            createdat: time(),
+            result: [
+                'moduleType' => $moduletype,
+                'creation' => [
+                    [
+                        'action' => 'create_module',
+                        'save_as' => 'module',
+                        'fields' => [
+                            'name' => ['source' => '$.name'],
+                            'intro' => ['source' => '$.intro'],
+                            'content' => ['source' => '$.content'],
+                        ],
+                    ],
+                ],
+                'data' => [
+                    'name' => 'Filled page',
+                    'intro' => 'Intro',
+                    'content' => '<p>Body</p>',
+                ],
+            ]
+        ));
+        service_factory::set_test_job_service(new job_service(null, $poller, $repo));
     }
 
     /**

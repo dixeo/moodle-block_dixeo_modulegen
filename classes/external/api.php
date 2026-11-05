@@ -955,10 +955,14 @@ class api extends external_api {
                 $sectionnumber,
                 $beforemod,
                 $nameoverride,
-                $introoverride
+                $introoverride,
+                $modulename
             );
 
             if (empty($result['success'])) {
+                if (($result['errorcode'] ?? '') === 'module_type_mismatch') {
+                    $reason = queue_task_failed::REASON_TYPE_MISMATCH;
+                }
                 return [
                     'success' => false,
                     'cmid' => 0,
