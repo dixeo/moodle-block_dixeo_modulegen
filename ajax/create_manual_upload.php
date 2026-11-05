@@ -44,6 +44,7 @@ try {
     $context = context_course::instance($courseid);
     require_capability('local/dixeo:generate', $context);
     require_capability('moodle/course:manageactivities', $context);
+    \local_dixeo\external\service_factory::get_settings_config()->require_enabled($context);
 
     if (!in_array($modtype, ['scorm', 'resource'], true)) {
         throw new moodle_exception('error_unsupported_module', 'block_dixeo_modulegen', '', $modtype);

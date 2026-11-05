@@ -54,6 +54,7 @@ use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\api\exception\api_exception;
 use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
+use local_dixeo\external\traits\capability_check;
 use local_dixeo\service\module_addinstance_service;
 use local_dixeo\service\module_types_service;
 
@@ -75,11 +76,16 @@ use local_dixeo\service\module_types_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class api extends external_api {
+    use capability_check;
+
     /**
      * Validate course access and capabilities.
      *
      * Ensures the user is logged into the course and has manageactivities capability.
-     * Sets PAGE context for security and correct output during the request.
+     * Sets PAGE context for security and correct output during the request. Endpoints
+     * that send data to Dixeo or create activities use validate_course_capability(),
+     * which also requires Dixeo to be on; this check lets teachers see, cancel and
+     * remove queue rows while Dixeo is off.
      *
      * @param int $courseid The course ID.
      * @return \context_course The course context.
@@ -203,7 +209,7 @@ class api extends external_api {
             'lang' => $lang,
         ]);
 
-        self::validate_course_access($params['courseid']);
+        self::validate_course_capability($params['courseid'], true);
 
         try {
             self::authorised_generation_module((int) $params['courseid'], (string) $params['modulename']);
@@ -561,7 +567,7 @@ class api extends external_api {
             return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => 'Task not found'];
         }
 
-        self::validate_course_access((int) $task->courseid);
+        self::validate_course_capability((int) $task->courseid, true);
 
         $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
         $lock = $lockfactory->get_lock('createtask_' . $params['queueid'], 60);
@@ -724,7 +730,7 @@ class api extends external_api {
             ];
         }
 
-        self::validate_course_access($params['courseid']);
+        self::validate_course_capability($params['courseid'], true);
 
         if ((int) $task->status !== queue_status::STATUS_FAILED) {
             return [

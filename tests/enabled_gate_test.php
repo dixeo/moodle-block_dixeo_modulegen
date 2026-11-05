@@ -35,6 +35,7 @@ use block_dixeo_modulegen\local\hooks\output\before_http_headers;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \block_dixeo_modulegen::get_content
  * @covers     \block_dixeo_modulegen\local\hooks\output\before_http_headers::callback
+ * @covers     \block_dixeo_modulegen\external\api
  */
 final class enabled_gate_test extends \advanced_testcase {
     /**
@@ -97,6 +98,53 @@ final class enabled_gate_test extends \advanced_testcase {
             'block_dixeo_modulegen/activitychooser',
             $this->hook_end_code($course)
         );
+    }
+
+    /**
+     * Submitting is refused while Dixeo is off for the course, and no queue row is written.
+     */
+    public function test_submit_generation_is_refused_when_the_course_is_off(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        \local_dixeo\external\service_factory::get_settings_config()
+            ->set('local_dixeo', 'enabled', \context_course::instance($course->id), '0');
+
+        try {
+            external\api::submit_generation((int) $course->id, 'page', 'Write an introduction');
+            $this->fail('Submitting must be refused while Dixeo is off');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('error:dixeo_disabled', $e->errorcode);
+        }
+        $this->assertSame(0, $DB->count_records(queue_repository::TABLE, ['courseid' => $course->id]));
+    }
+
+    /**
+     * Teachers can still see, cancel and remove queue rows while Dixeo is off.
+     */
+    public function test_queue_can_be_read_cancelled_and_cleaned_when_the_course_is_off(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $record = queue_repository::create_base_record((int) $course->id, 'page', 'Instructions', null, null, 'en');
+        $record->status = queue_status::STATUS_PENDING;
+        $record->params = json_encode(['submittedby' => (int) get_admin()->id]);
+        $queueid = queue_repository::insert($record);
+        \local_dixeo\external\service_factory::get_settings_config()
+            ->set('local_dixeo', 'enabled', \context_course::instance($course->id), '0');
+
+        $status = external\api::get_queue_status((int) $course->id);
+        $this->assertCount(1, $status['tasks']);
+
+        $cancelled = external\api::update_task($queueid, 'cancel');
+        $this->assertTrue($cancelled['success']);
+        $this->assertSame(queue_status::STATUS_CANCELLED, (int) queue_repository::get_by_id($queueid)->status);
+
+        $deleted = external\api::delete_task($queueid);
+        $this->assertTrue($deleted['success']);
+        $this->assertNull(queue_repository::get_by_id($queueid));
     }
 
     /**

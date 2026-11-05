@@ -45,10 +45,7 @@ class before_http_headers {
 
         // Card scripts belong to the module generator, so they stay unloaded while Dixeo is off.
         $courseid = (int) ($PAGE->course->id ?? 0);
-        $context = $courseid > SITEID
-            ? \context_course::instance($courseid)
-            : \context_system::instance();
-        if (!\local_dixeo\external\service_factory::get_settings_config()->enabled_for($context)) {
+        if (!\local_dixeo\external\service_factory::get_settings_config()->enabled_for_course($courseid)) {
             return;
         }
 
