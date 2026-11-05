@@ -54,6 +54,15 @@ class queue_service {
     /** @var int Seconds to wait for the per-course claim lock before giving up. */
     private const CLAIM_LOCK_TIMEOUT = 2;
 
+    /** @var int Seconds after which a PROCESSING row is considered abandoned. */
+    public const STALE_PROCESSING_SECS = 6 * HOURSECS;
+
+    /** @var int Seconds after which a PENDING row is considered abandoned. */
+    public const STALE_PENDING_SECS = 7 * DAYSECS;
+
+    /** @var int Maximum rows expired by one call. */
+    private const STALE_BATCH_SIZE = 500;
+
     /**
      * Submit a generation request.
      *
@@ -312,6 +321,7 @@ class queue_service {
         }
 
         try {
+            self::expire_stale(time(), $courseid);
             if (self::has_active_job($courseid)) {
                 return null;
             }
@@ -357,6 +367,40 @@ class queue_service {
             return get_string('error_missing_submitter', 'block_dixeo_modulegen');
         }
         return null;
+    }
+
+    /**
+     * Fail rows that waited or processed for longer than their limit.
+     *
+     * A PROCESSING row older than {@see self::STALE_PROCESSING_SECS} or a PENDING row older than
+     * {@see self::STALE_PENDING_SECS} is failed, so it no longer blocks its course queue and the
+     * retention rule for terminal rows applies to it. No remote call is made: a job that old is
+     * finished at Dixeo.
+     *
+     * @param int $now Current time.
+     * @param int|null $courseid Only this course, or every course when null.
+     * @return int Number of rows failed, at most 500 per call.
+     */
+    public static function expire_stale(int $now, ?int $courseid = null): int {
+        $tasks = queue_repository::get_stale(
+            $now - self::STALE_PROCESSING_SECS,
+            $now - self::STALE_PENDING_SECS,
+            $courseid,
+            self::STALE_BATCH_SIZE
+        );
+        if ($tasks === []) {
+            return 0;
+        }
+
+        $error = get_string('error_stale_task', 'block_dixeo_modulegen');
+        foreach ($tasks as $task) {
+            $task->status = queue_status::STATUS_FAILED;
+            $task->timecompleted = $now;
+            self::update_task_params($task, ['error' => $error]);
+            queue_repository::update($task);
+        }
+
+        return count($tasks);
     }
 
     /**

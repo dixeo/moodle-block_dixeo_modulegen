@@ -620,7 +620,15 @@ class api extends external_api {
                 ];
             }
 
-            $moodlemodule = self::authorised_generation_module((int) $task->courseid, (string) $task->modulename);
+            // A type that is no longer supported can never be created, so the row is closed. A caller
+            // without addinstance gets an error and the row stays for a teacher who may add it.
+            $moodlemodule = service_factory::get_module_types_service()->resolve_generation_module((string) $task->modulename);
+            if ($moodlemodule === null) {
+                $errmsg = get_string('error_unsupported_module', 'block_dixeo_modulegen', (string) $task->modulename);
+                queue_service::fail($params['queueid'], $errmsg);
+                return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
+            }
+            module_addinstance_service::require_for_course((int) $task->courseid, $moodlemodule);
             $jobstatus = null;
             try {
                 $jobstatus = service_factory::get_job_service()->get_job_status(

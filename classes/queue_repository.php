@@ -204,6 +204,34 @@ class queue_repository {
     }
 
     /**
+     * Rows that waited or processed for longer than their limit, oldest first.
+     *
+     * @param int $processingcutoff PROCESSING rows started before this time match.
+     * @param int $pendingcutoff PENDING rows created before this time match.
+     * @param int|null $courseid Only this course, or every course when null.
+     * @param int $limit Maximum number of rows returned.
+     * @return \stdClass[] Matching rows keyed by id.
+     */
+    public static function get_stale(int $processingcutoff, int $pendingcutoff, ?int $courseid, int $limit): array {
+        global $DB;
+
+        $select = '((status = :processing AND timestarted < :processingcutoff)
+                    OR (status = :pending AND timecreated < :pendingcutoff))';
+        $params = [
+            'processing' => queue_status::STATUS_PROCESSING,
+            'processingcutoff' => $processingcutoff,
+            'pending' => queue_status::STATUS_PENDING,
+            'pendingcutoff' => $pendingcutoff,
+        ];
+        if ($courseid !== null) {
+            $select .= ' AND courseid = :courseid';
+            $params['courseid'] = $courseid;
+        }
+
+        return $DB->get_records_select(self::TABLE, $select, $params, 'id ASC', '*', 0, $limit);
+    }
+
+    /**
      * Create base record structure for queue entries.
      *
      * Caller must set status and optionally jobid/timestarted before insert.

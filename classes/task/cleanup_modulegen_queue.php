@@ -25,6 +25,7 @@
 namespace block_dixeo_modulegen\task;
 
 use block_dixeo_modulegen\queue_repository;
+use block_dixeo_modulegen\queue_service;
 
 /**
  * Deletes completed, failed, and cancelled queue rows past the retention window.
@@ -43,11 +44,16 @@ class cleanup_modulegen_queue extends \core\task\scheduled_task {
     }
 
     /**
-     * Delete terminal queue rows older than {@see self::RETENTION_DAYS}.
+     * Fail abandoned rows, then delete terminal queue rows older than {@see self::RETENTION_DAYS}.
      *
      * @return void
      */
     public function execute(): void {
+        $expired = queue_service::expire_stale(time());
+        if ($expired > 0) {
+            mtrace("[block_dixeo_modulegen] Failed {$expired} queue row(s) that did not finish in time.");
+        }
+
         $cutoff = time() - (DAYSECS * self::RETENTION_DAYS);
         $deleted = queue_repository::delete_terminal_older_than($cutoff);
 
