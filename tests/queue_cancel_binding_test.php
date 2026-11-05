@@ -68,4 +68,24 @@ final class queue_cancel_binding_test extends \advanced_testcase {
         $this->assertNotNull($updated);
         $this->assertSame(queue_status::STATUS_CANCELLED, (int) $updated->status);
     }
+
+    public function test_cancel_passes_the_submitter(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $record = queue_repository::create_base_record((int) $course->id, 'page', 'Generate intro', null, null, 'en');
+        $record->status = queue_status::STATUS_PROCESSING;
+        $record->jobid = self::JOB_ID;
+        $record->timestarted = time();
+        $record->params = json_encode(['submittedby' => (int) $teacher->id]);
+        $queueid = queue_repository::insert($record);
+
+        $jobservice = $this->createMock(job_service::class);
+        $jobservice->expects($this->once())
+            ->method('cancel_job')
+            ->with(self::JOB_ID, (int) $course->id, (int) $teacher->id)
+            ->willReturn([]);
+        service_factory::set_test_job_service($jobservice);
+
+        $this->assertTrue(queue_service::cancel($queueid));
+    }
 }

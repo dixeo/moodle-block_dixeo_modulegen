@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Add a Dixeo Content Generator block';
 $string['dixeo_modulegen:myaddinstance'] = 'Add a Dixeo Content Generator block to Dashboard';
 $string['error_invalid_fill_pending'] = 'Invalid queue state: fill tasks cannot be pending.';
 $string['error_invalid_manual_pending'] = 'Invalid queue state: manual upload tasks cannot be pending.';
+$string['error_job_status_unavailable'] = 'The generation status is not available yet. Try again in a moment.';
 $string['error_missing_submitter'] = 'Missing submitter user for file sync.';
 $string['error_queue_failed'] = 'Failed to add task to the generation queue.';
 $string['error_required_elements'] = 'Required elements not found.';

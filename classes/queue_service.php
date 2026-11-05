@@ -191,7 +191,7 @@ class queue_service {
                     service_factory::get_job_service()->cancel_job(
                         $task->jobid,
                         (int) $task->courseid,
-                        (int) ($task->userid ?? 0)
+                        self::resolve_submitter_userid($task)
                     );
                 } catch (\Exception $e) {
                     // Still mark as cancelled and start next so the queue does not get stuck.

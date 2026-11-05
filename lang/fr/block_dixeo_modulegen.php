@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Ajouter un bloc Générateur de conten
 $string['dixeo_modulegen:myaddinstance'] = 'Ajouter un bloc Générateur de contenu Dixeo au tableau de bord';
 $string['error_invalid_fill_pending'] = 'État de file invalide : les tâches de remplissage ne peuvent pas être en attente.';
 $string['error_invalid_manual_pending'] = 'État de file invalide : les téléversements manuels ne peuvent pas être en attente.';
+$string['error_job_status_unavailable'] = 'Le statut de la génération n\'est pas encore disponible. Réessayez dans un instant.';
 $string['error_missing_submitter'] = 'Utilisateur soumissionnaire manquant pour la synchronisation des fichiers.';
 $string['error_queue_failed'] = 'Échec de l\'ajout de la tâche à la file d\'attente de génération.';
 $string['error_required_elements'] = 'Éléments requis introuvables.';

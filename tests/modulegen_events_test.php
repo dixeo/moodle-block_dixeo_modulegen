@@ -33,6 +33,9 @@ use block_dixeo_modulegen\event\queue_task_deleted;
 use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\event\queue_task_submitted;
 use block_dixeo_modulegen\external\api;
+use local_dixeo\dto\job_status;
+use local_dixeo\external\service_factory;
+use local_dixeo\service\job_service;
 
 /**
  * Sensitive modulegen actions must emit audit events without instructions in other.
@@ -52,6 +55,11 @@ final class modulegen_events_test extends \advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
+    }
+
+    protected function tearDown(): void {
+        service_factory::reset();
+        parent::tearDown();
     }
 
     /**
@@ -108,34 +116,19 @@ final class modulegen_events_test extends \advanced_testcase {
         return queue_repository::insert($record);
     }
 
-    public function test_complete_emits_queue_task_completed(): void {
-        [$course, $user] = $this->create_course_and_editor();
-        $jobid = \core\uuid::generate();
-        $queueid = $this->create_processing_generate_task($course, (int) $user->id, $jobid);
-        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
-
-        $sink = $this->redirectEvents();
-        $result = api::update_task($queueid, 'complete', (int) $page->cmid, '', $jobid);
-
-        $this->assertTrue($result['success']);
-        $completed = array_values(array_filter(
-            $sink->get_events(),
-            static fn($event) => $event instanceof queue_task_completed
-        ));
-        $this->assertCount(1, $completed);
-        $this->assertEquals($queueid, (int) $completed[0]->objectid);
-        $this->assertEquals((int) $course->id, (int) $completed[0]->courseid);
-        $this->assertEquals((int) $user->id, (int) $completed[0]->userid);
-        $this->assertSame($jobid, $completed[0]->other['jobid']);
-        $this->assertSame((int) $page->cmid, (int) $completed[0]->other['cmid']);
-        $this->assert_minimal_queue_other($completed[0]);
-        $this->assertStringNotContainsString('Secret', $completed[0]->get_description());
-    }
-
     public function test_fail_emits_queue_task_failed(): void {
         [$course, $user] = $this->create_course_and_editor();
         $jobid = \core\uuid::generate();
         $queueid = $this->create_processing_generate_task($course, (int) $user->id, $jobid);
+        $jobservice = $this->createMock(job_service::class);
+        $jobservice->method('get_job_status')->willReturn(new job_status(
+            jobid: $jobid,
+            type: 'module',
+            status: job_status::STATUS_FAILED,
+            progress: 100,
+            createdat: time()
+        ));
+        service_factory::set_test_job_service($jobservice);
 
         $sink = $this->redirectEvents();
         $result = api::update_task($queueid, 'fail', 0, 'Remote API secret error', $jobid);

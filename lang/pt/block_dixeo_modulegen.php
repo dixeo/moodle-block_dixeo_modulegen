@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Adicionar um bloco Gerador de Conteúd
 $string['dixeo_modulegen:myaddinstance'] = 'Adicionar um bloco Gerador de Conteúdo Dixeo ao Painel';
 $string['error_invalid_fill_pending'] = 'Estado de fila inválido: as tarefas de preenchimento não podem estar pendentes.';
 $string['error_invalid_manual_pending'] = 'Estado de fila inválido: os carregamentos manuais não podem estar pendentes.';
+$string['error_job_status_unavailable'] = 'O estado da geração ainda não está disponível. Tente novamente dentro de momentos.';
 $string['error_missing_submitter'] = 'Falta o utilizador remetente para a sincronização de ficheiros.';
 $string['error_queue_failed'] = 'Falha ao adicionar a tarefa à fila de geração.';
 $string['error_required_elements'] = 'Elementos obrigatórios não encontrados.';

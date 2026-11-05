@@ -48,11 +48,11 @@ $functions = [
         'readonlysession' => true,
     ],
 
-    // Update a task (complete, fail, or cancel).
+    // Update a task (fail or cancel).
     'block_dixeo_modulegen_update_task' => [
         'classname' => 'block_dixeo_modulegen\external\api',
         'methodname' => 'update_task',
-        'description' => 'Update task status (complete, fail, or cancel)',
+        'description' => 'Update task status (fail or cancel)',
         'type' => 'write',
         'ajax' => true,
         'capabilities' => 'moodle/course:manageactivities',

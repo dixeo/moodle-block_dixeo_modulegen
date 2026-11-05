@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Añadir un bloque Generador de Conteni
 $string['dixeo_modulegen:myaddinstance'] = 'Añadir un bloque Generador de Contenido Dixeo al panel de control';
 $string['error_invalid_fill_pending'] = 'Estado de cola no válido: las tareas de relleno no pueden estar pendientes.';
 $string['error_invalid_manual_pending'] = 'Estado de cola no válido: las cargas manuales no pueden estar pendientes.';
+$string['error_job_status_unavailable'] = 'El estado de la generación aún no está disponible. Inténtelo de nuevo en un momento.';
 $string['error_missing_submitter'] = 'Falta el usuario remitente para la sincronización de archivos.';
 $string['error_queue_failed'] = 'Error al añadir la tarea a la cola de generación.';
 $string['error_required_elements'] = 'No se encontraron los elementos requeridos.';

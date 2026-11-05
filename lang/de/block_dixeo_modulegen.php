@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Einen Dixeo-Inhaltsgenerator-Block hin
 $string['dixeo_modulegen:myaddinstance'] = 'Einen Dixeo-Inhaltsgenerator-Block zur Übersicht hinzufügen';
 $string['error_invalid_fill_pending'] = 'Ungültiger Warteschlangenstatus: Fill-Aufgaben dürfen nicht ausstehend sein.';
 $string['error_invalid_manual_pending'] = 'Ungültiger Warteschlangenstatus: manuelle Uploads dürfen nicht ausstehend sein.';
+$string['error_job_status_unavailable'] = 'Der Generierungsstatus ist noch nicht verfügbar. Versuchen Sie es gleich noch einmal.';
 $string['error_missing_submitter'] = 'Fehlender einreichender Benutzer für die Dateisynchronisierung.';
 $string['error_queue_failed'] = 'Die Aufgabe konnte nicht zur Generierungswarteschlange hinzugefügt werden.';
 $string['error_required_elements'] = 'Erforderliche Elemente wurden nicht gefunden.';

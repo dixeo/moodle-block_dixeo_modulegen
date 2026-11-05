@@ -334,6 +334,7 @@ final class queue_processor_test extends advanced_testcase {
         );
         $processing->status = queue_status::STATUS_PROCESSING;
         $processing->jobid = \core\uuid::generate();
+        $processing->timestarted = time();
         queue_repository::insert($processing);
 
         $pending = queue_repository::create_base_record(

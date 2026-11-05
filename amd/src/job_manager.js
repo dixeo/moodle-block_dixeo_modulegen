@@ -214,10 +214,10 @@ define([
      * Update a task status via the API.
      *
      * @param {number} queueId - The queue record ID.
-     * @param {string} action - The action: complete, fail, or cancel.
-     * @param {number} cmid - The created module ID (for complete).
-     * @param {string} errorMsg - The error message (for fail).
-     * @param {string} [jobId] - Job UUID required for complete/fail correlation.
+     * @param {string} action - The action: fail or cancel.
+     * @param {number} cmid - Ignored by the server.
+     * @param {string} errorMsg - Ignored by the server.
+     * @param {string} [jobId] - Job UUID required for fail correlation.
      * @returns {Promise} Resolves when update completes.
      */
     const updateTask = (queueId, action, cmid, errorMsg, jobId) => {
@@ -279,8 +279,9 @@ define([
             args: {queueid: queueId}
         }])[0].then((result) => {
             if (!result.success) {
-                const message = result.message || 'Failed to create module';
-                throw new Error(message);
+                const error = new Error(result.message || 'Failed to create module');
+                error.retry = !!result.retry;
+                throw error;
             }
             return {
                 cmid: result.cmid,
@@ -338,6 +339,12 @@ define([
                     dispatchCompletionEvent(queueId, job, result.cmid, result.sectionid, result.sectionnumber);
                     activeJobs.delete(queueId);
                 } catch (error) {
+                    if (error.retry) {
+                        // The server could not read the job yet: ask again on the next poll.
+                        job.status = 'processing';
+                        job.timeoutId = setTimeout(() => pollJobStatus(queueId), JOB_POLL_INTERVAL_MS);
+                        return;
+                    }
                     job.status = 'failed';
                     dispatchFailureEvent(queueId, job, error.message);
                     activeJobs.delete(queueId);

@@ -46,6 +46,7 @@ $string['dixeo_modulegen:addinstance'] = 'Aggiungi un blocco Generatore di Conte
 $string['dixeo_modulegen:myaddinstance'] = 'Aggiungi un blocco Generatore di Contenuti Dixeo alla Dashboard';
 $string['error_invalid_fill_pending'] = 'Stato coda non valido: le attività fill non possono essere in sospeso.';
 $string['error_invalid_manual_pending'] = 'Stato coda non valido: i caricamenti manuali non possono essere in sospeso.';
+$string['error_job_status_unavailable'] = 'Lo stato della generazione non è ancora disponibile. Riprova tra un momento.';
 $string['error_missing_submitter'] = 'Utente mittente mancante per la sincronizzazione dei file.';
 $string['error_queue_failed'] = 'Impossibile aggiungere l\'attività alla coda di generazione.';
 $string['error_required_elements'] = 'Elementi richiesti non trovati.';

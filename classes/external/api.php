@@ -20,7 +20,7 @@
  * Consolidates all web service functions:
  * - submit_generation: Queue a new module generation
  * - get_queue_status: Get tasks and stats for a course
- * - update_task: Complete, fail, or cancel a task
+ * - update_task: Fail or cancel a task
  * - create_module_for_task: Idempotently create a module for a completed job
  * - retry_fill_task: Retry a failed fill-mode queue row
  *
@@ -46,7 +46,6 @@ use block_dixeo_modulegen\queue_task_mode;
 use block_dixeo_modulegen\section_resolver;
 use block_dixeo_modulegen\event\fill_task_retried;
 use block_dixeo_modulegen\event\queue_task_cancelled;
-use block_dixeo_modulegen\event\queue_task_completed;
 use block_dixeo_modulegen\event\queue_task_deleted;
 use block_dixeo_modulegen\event\queue_task_failed;
 use block_dixeo_modulegen\event\queue_task_submitted;
@@ -56,7 +55,6 @@ use local_dixeo\external\create_module_from_job;
 use local_dixeo\external\service_factory;
 use local_dixeo\external\traits\capability_check;
 use local_dixeo\service\module_addinstance_service;
-use local_dixeo\service\module_types_service;
 use local_dixeo\util\input_limits;
 
 /**
@@ -65,7 +63,7 @@ use local_dixeo\util\input_limits;
  * Provides all web service functions for the block:
  * - submit_generation: Queue a new module generation request
  * - get_queue_status: Get tasks and statistics for a course
- * - update_task: Complete, fail, or cancel a task
+ * - update_task: Fail or cancel a task
  *
  * All methods include proper parameter validation, capability checks,
  * and standardized error handling.
@@ -78,6 +76,9 @@ use local_dixeo\util\input_limits;
  */
 class api extends external_api {
     use capability_check;
+
+    /** @var string[] create_module_from_job error codes after which the job can never create the activity. */
+    private const TERMINAL_CREATE_ERRORS = ['module_type_mismatch', 'no_creation_instructions', 'dsl_execution_error'];
 
     /**
      * Validate course access and capabilities.
@@ -358,7 +359,7 @@ class api extends external_api {
         ]);
     }
 
-    // Update task: complete, fail, or cancel a task.
+    // Update task: fail or cancel a task.
 
     /**
      * Parameters for update_task.
@@ -368,12 +369,12 @@ class api extends external_api {
     public static function update_task_parameters(): external_function_parameters {
         return new external_function_parameters([
             'queueid' => new external_value(PARAM_INT, 'Queue record ID'),
-            'action' => new external_value(PARAM_ALPHA, 'Action: complete, fail, or cancel'),
-            'cmid' => new external_value(PARAM_INT, 'Created module ID (for complete)', VALUE_DEFAULT, 0),
-            'error' => new external_value(PARAM_RAW, 'Error message (for fail)', VALUE_DEFAULT, ''),
+            'action' => new external_value(PARAM_ALPHA, 'Action: fail or cancel'),
+            'cmid' => new external_value(PARAM_INT, 'Ignored', VALUE_DEFAULT, 0),
+            'error' => new external_value(PARAM_RAW, 'Ignored: the stored failure message is generic', VALUE_DEFAULT, ''),
             'jobid' => new external_value(
                 PARAM_TEXT,
-                'Job UUID required for complete/fail when task has a jobid',
+                'Job UUID required for fail',
                 VALUE_DEFAULT,
                 ''
             ),
@@ -381,16 +382,17 @@ class api extends external_api {
     }
 
     /**
-     * Update a task status (complete, fail, or cancel).
+     * Update a task status (fail or cancel).
      *
-     * For complete/fail actions, also starts the next pending task if one exists.
+     * A fail is applied only when Dixeo reports the job failed or cancelled, or when the row is
+     * stale; it then schedules the next pending task. Modules are created by create_module_for_task().
      *
      * @param int $queueid The queue record ID.
-     * @param string $action The action: complete, fail, or cancel.
-     * @param int $cmid The created module ID (for complete action).
-     * @param string $error The error message (for fail action).
-     * @param string $jobid Job UUID correlating to the processing task (required for complete/fail).
-     * @return array Result with success status and next_task info if applicable.
+     * @param string $action The action: fail or cancel.
+     * @param int $cmid Ignored.
+     * @param string $error Ignored: the stored failure message is generic.
+     * @param string $jobid Job UUID correlating to the processing task (required for fail).
+     * @return array Result with success status.
      */
     public static function update_task(
         int $queueid,
@@ -418,34 +420,13 @@ class api extends external_api {
         self::validate_course_access($task->courseid);
 
         switch ($params['action']) {
-            case 'complete':
-                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
-                if ($validationerror !== null) {
-                    return self::create_update_error_response($validationerror);
-                }
-                if ($params['cmid'] <= 0) {
-                    return self::create_update_error_response('cmid required for complete action');
-                }
-                if (!self::cmid_belongs_to_course($params['cmid'], (int) $task->courseid)) {
-                    return self::create_update_error_response('cmid does not belong to the task course');
-                }
-                if (!queue_service::complete($params['queueid'], $params['cmid'])) {
-                    return self::create_update_error_response('Cannot complete this task');
-                }
-                $completed = queue_repository::get_by_id($params['queueid']);
-                if ($completed) {
-                    queue_task_completed::create_from_task(
-                        $completed,
-                        (int) $USER->id,
-                        $params['cmid']
-                    )->trigger();
-                }
-                break;
-
             case 'fail':
-                $validationerror = self::validate_complete_or_fail_transition($task, $params['jobid']);
+                $validationerror = self::validate_fail_transition($task, $params['jobid']);
                 if ($validationerror !== null) {
                     return self::create_update_error_response($validationerror);
+                }
+                if (!self::job_may_be_failed($task)) {
+                    return self::create_update_error_response('The job has not failed');
                 }
                 // Do not persist client-supplied remote/API error text on the queue row.
                 if (
@@ -486,13 +467,13 @@ class api extends external_api {
     }
 
     /**
-     * Ensure complete/fail only apply to processing tasks with a matching jobid.
+     * Ensure fail only applies to processing tasks with a matching jobid.
      *
      * @param \stdClass $task Queue row.
      * @param string $jobid Caller-supplied job UUID.
      * @return string|null Error message, or null when valid.
      */
-    private static function validate_complete_or_fail_transition(\stdClass $task, string $jobid): ?string {
+    private static function validate_fail_transition(\stdClass $task, string $jobid): ?string {
         if ((int) $task->status !== queue_status::STATUS_PROCESSING) {
             return 'Invalid task state for this action';
         }
@@ -510,15 +491,33 @@ class api extends external_api {
     }
 
     /**
-     * Check that a course module exists and belongs to the given course.
+     * Whether a processing row may be failed on the client's report.
      *
-     * @param int $cmid Course module ID.
-     * @param int $courseid Expected course ID.
+     * Dixeo must report the job failed or cancelled, or the row must be older than
+     * {@see queue_service::STALE_PROCESSING_SECS}. When the job status cannot be read, only a stale
+     * row may be failed.
+     *
+     * @param \stdClass $task Processing queue row with a jobid.
      * @return bool
      */
-    private static function cmid_belongs_to_course(int $cmid, int $courseid): bool {
-        $cm = get_coursemodule_from_id(null, $cmid, $courseid, false, IGNORE_MISSING);
-        return $cm !== false && (int) $cm->course === $courseid;
+    private static function job_may_be_failed(\stdClass $task): bool {
+        global $USER;
+
+        if ((int) $task->timestarted < time() - queue_service::STALE_PROCESSING_SECS) {
+            return true;
+        }
+
+        try {
+            $status = service_factory::get_job_service()->get_job_status(
+                (string) $task->jobid,
+                (int) $task->courseid,
+                (int) $USER->id
+            );
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return $status->is_failed() || $status->status === 'cancelled';
     }
 
     /**
@@ -563,7 +562,8 @@ class api extends external_api {
      * first caller creates the module; later callers get the existing cmid.
      *
      * @param int $queueid The queue record ID.
-     * @return array success, cmid, sectionid, sectionnumber, alreadycreated, message
+     * @return array success, cmid, sectionid, sectionnumber, alreadycreated, message, and retry when
+     *     the job status could not be read and the row stays PROCESSING
      */
     public static function create_module_for_task(int $queueid): array {
         global $USER;
@@ -629,45 +629,30 @@ class api extends external_api {
                 return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
             }
             module_addinstance_service::require_for_course((int) $task->courseid, $moodlemodule);
-            $jobstatus = null;
-            try {
-                $jobstatus = service_factory::get_job_service()->get_job_status(
-                    (string) $task->jobid,
-                    (int) $task->courseid,
-                    (int) $USER->id
-                );
-            } catch (\Throwable $e) {
-                // A missing job status is reported later by create_module_from_job.
-                $jobstatus = null;
-            }
-            if ($jobstatus !== null && $jobstatus->is_completed()) {
-                $jobresult = $jobstatus->result;
-                if (is_string($jobresult)) {
-                    $jobresult = json_decode($jobresult, true);
-                }
-                $resulttype = is_array($jobresult) ? (string) ($jobresult['moduleType'] ?? '') : '';
-                if (
-                    !module_types_service::result_matches_requested_type(
-                        (string) $task->modulename,
-                        $resulttype,
-                        $moodlemodule
-                    )
-                ) {
-                    $errmsg = get_string('error_unsupported_module', 'block_dixeo_modulegen', $resulttype);
-                    queue_service::fail($params['queueid'], $errmsg);
-                    return ['success' => false, 'cmid' => 0, 'alreadycreated' => false, 'message' => $errmsg];
-                }
-                module_addinstance_service::require_for_course((int) $task->courseid, $moodlemodule);
-            }
 
             $result = create_module_from_job::execute(
                 (string) $task->jobid,
                 (int) $task->courseid,
                 $sectionnumber,
-                !empty($task->beforemod) ? (int) $task->beforemod : null
+                !empty($task->beforemod) ? (int) $task->beforemod : null,
+                null,
+                null,
+                (string) $task->modulename
             );
 
             if (empty($result['success']) || empty($result['cmid'])) {
+                $errorcode = (string) ($result['errorcode'] ?? '');
+                if (!in_array($errorcode, self::TERMINAL_CREATE_ERRORS, true)) {
+                    // The job status could not be read or the job is not finished: the client keeps
+                    // polling, and an abandoned row expires.
+                    return [
+                        'success' => false,
+                        'cmid' => 0,
+                        'alreadycreated' => false,
+                        'message' => get_string('error_job_status_unavailable', 'block_dixeo_modulegen'),
+                        'retry' => true,
+                    ];
+                }
                 if (!empty($result['errormessage'])) {
                     debugging(
                         'create_module_for_task failed: ' . (string) $result['errormessage'],
@@ -707,6 +692,11 @@ class api extends external_api {
             'sectionnumber' => new external_value(PARAM_INT, 'Number of the section the module was placed in', VALUE_OPTIONAL),
             'alreadycreated' => new external_value(PARAM_BOOL, 'True if another caller already created the module'),
             'message' => new external_value(PARAM_RAW, 'Error message or empty', VALUE_DEFAULT, ''),
+            'retry' => new external_value(
+                PARAM_BOOL,
+                'True when the row is unchanged and creation may be asked again',
+                VALUE_OPTIONAL
+            ),
         ]);
     }
 
@@ -903,7 +893,7 @@ class api extends external_api {
             );
             $filljobid = (string) ($operation->jobid ?? '');
 
-            $waitresult = $jobservice->wait_for_job($operation->jobid, 'fill_module');
+            $waitresult = $jobservice->wait_for_job($operation->jobid, 'fill_module', $courseid, (int) $USER->id);
             if (!$waitresult->is_completed()) {
                 return [
                     'success' => false,

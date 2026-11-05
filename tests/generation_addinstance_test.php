@@ -98,6 +98,7 @@ final class generation_addinstance_test extends \advanced_testcase {
         service_factory::set_test_job_service($jobs);
 
         $result = api::create_module_for_task($queueid);
+        $this->resetDebugging();
 
         $this->assertFalse($result['success']);
         $task = queue_repository::get_by_id($queueid);
