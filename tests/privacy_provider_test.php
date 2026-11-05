@@ -185,6 +185,46 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertTrue($DB->record_exists(queue_repository::TABLE, ['id' => $peerfillid]));
     }
 
+    public function test_rows_logged_through_the_fill_hook_belong_to_the_hook_user(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $coursecontext = \context_course::instance($course->id);
+        $this->setAdminUser();
+        \block_dixeo_modulegen\local\hooks\module_fill_finished::callback(new \local_dixeo\hook\module_fill_finished(
+            (int) $course->id,
+            (int) $teacher->id,
+            'page',
+            'Hook fill prompt',
+            1,
+            null,
+            'Hook fill',
+            'Hook summary',
+            false,
+            0,
+            ''
+        ));
+        $rowid = (int) $DB->get_field(queue_repository::TABLE, 'id', ['courseid' => $course->id], MUST_EXIST);
+
+        $contextids = array_map('intval', provider::get_contexts_for_userid((int) $teacher->id)->get_contextids());
+        $this->assertContains((int) $coursecontext->id, $contextids);
+        $this->assertEmpty(provider::get_contexts_for_userid((int) get_admin()->id)->get_contextids());
+
+        $approved = new approved_contextlist($teacher, 'block_dixeo_modulegen', [(int) $coursecontext->id]);
+        writer::reset();
+        provider::export_user_data($approved);
+        $exported = writer::with_context($coursecontext)->get_data([
+            get_string('pluginname', 'block_dixeo_modulegen'),
+            get_string('privacy:path:queue', 'block_dixeo_modulegen'),
+            (string) $rowid,
+        ]);
+        $this->assertSame('Hook fill prompt', $exported->instructions);
+
+        provider::delete_data_for_user($approved);
+        $this->assertFalse($DB->record_exists(queue_repository::TABLE, ['id' => $rowid]));
+    }
+
     public function test_get_users_in_context_and_delete_data_for_users(): void {
         global $DB;
 

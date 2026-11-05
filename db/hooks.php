@@ -30,4 +30,9 @@ $callbacks = [
         'callback' => \block_dixeo_modulegen\local\hooks\output\before_http_headers::class . '::callback',
         'priority' => 0,
     ],
+    [
+        'hook' => \local_dixeo\hook\module_fill_finished::class,
+        'callback' => \block_dixeo_modulegen\local\hooks\module_fill_finished::class . '::callback',
+        'priority' => 0,
+    ],
 ];
