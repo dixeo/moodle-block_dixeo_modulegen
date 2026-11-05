@@ -78,11 +78,10 @@ class provider implements
         $collection->add_external_location_link(
             'dixeo_api',
             [
-                'courseid' => 'privacy:metadata:external:courseid',
-                'modulename' => 'privacy:metadata:external:modulename',
+                'courseId' => 'privacy:metadata:external:courseid',
+                'moduleType' => 'privacy:metadata:external:moduletype',
                 'instructions' => 'privacy:metadata:external:instructions',
-                'filename' => 'privacy:metadata:external:filename',
-                'jobid' => 'privacy:metadata:external:jobid',
+                'context' => 'privacy:metadata:external:context',
             ],
             'privacy:metadata:externalpurpose'
         );

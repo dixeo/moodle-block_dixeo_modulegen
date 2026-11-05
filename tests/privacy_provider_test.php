@@ -51,6 +51,24 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertContains('dixeo_api', $names);
     }
 
+    public function test_external_metadata_uses_the_sent_payload_keys(): void {
+        $collection = provider::get_metadata(new collection('block_dixeo_modulegen'));
+        $external = null;
+        foreach ($collection->get_collection() as $item) {
+            if ($item->get_name() === 'dixeo_api') {
+                $external = $item;
+            }
+        }
+
+        $this->assertNotNull($external);
+        $fields = $external->get_privacy_fields();
+        $this->assertSame(['courseId', 'moduleType', 'instructions', 'context'], array_keys($fields));
+        $strings = get_string_manager();
+        foreach (array_merge(array_values($fields), [$external->get_summary()]) as $identifier) {
+            $this->assertTrue($strings->string_exists($identifier, 'block_dixeo_modulegen'), $identifier);
+        }
+    }
+
     public function test_get_contexts_for_userid_includes_course_for_generate_fill_and_manual(): void {
         $course = $this->getDataGenerator()->create_course();
         $user = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
