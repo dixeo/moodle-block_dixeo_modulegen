@@ -32,6 +32,7 @@ namespace block_dixeo_modulegen;
 use block_dixeo_modulegen\local\exception_message;
 use local_dixeo\external\service_factory;
 use local_dixeo\api\exception\api_exception;
+use local_dixeo\service\generation_access;
 use local_dixeo\util\input_limits;
 
 /**
@@ -95,9 +96,7 @@ class queue_service {
             $userid > 0 ? $userid : null
         );
 
-        if ($userid > 0) {
-            queue_processor::schedule($courseid, $userid);
-        }
+        queue_processor::schedule($courseid);
 
         return [
             'queueid' => $queueid,
@@ -233,41 +232,52 @@ class queue_service {
     /**
      * Process the next pending generate task: claim it, ensure file sync, then submit to the API.
      *
-     * Called from the adhoc queue processor. The row is promoted to PROCESSING under a per-course
-     * lock before any remote call, so concurrent runs can never submit the same task twice.
-     * Processes one successful promotion per run; skips invalid pending rows and retries the next
-     * on sync/API failure.
+     * Called from the adhoc queue processor; it switches the session user, so it must only run from
+     * CLI (cron or tests). The row is promoted to PROCESSING under a per-course lock before any remote
+     * call, so concurrent runs can never submit the same task twice. The user who queued the row is
+     * re-authorised, and the sync and submission run as that user, so the job is bound to them.
+     * Processes one successful promotion per run; fails refused rows and rows whose sync or submission
+     * fails, then moves on to the next.
      *
      * @param int $courseid The course ID.
-     * @param int $fallbackuserid User ID from the adhoc task when task params lack submittedby.
      * @return array|null Task info with job_id if started, null if nothing was claimed.
      */
-    public static function process_next_pending(int $courseid, int $fallbackuserid = 0): ?array {
+    public static function process_next_pending(int $courseid): ?array {
         while (true) {
-            $task = self::claim_next_pending($courseid, $fallbackuserid);
+            $task = self::claim_next_pending($courseid);
             if (!$task) {
                 return null;
             }
 
-            $userid = self::resolve_submitter_userid($task, $fallbackuserid);
-
-            try {
-                service_factory::get_file_sync_service()->ensure_enabled_and_synchronized($courseid, $userid);
-            } catch (\Throwable $e) {
-                self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+            $userid = self::resolve_submitter_userid($task);
+            $reason = generation_access::denial_reason($userid, $courseid, (string) $task->modulename);
+            if ($reason !== null) {
+                self::fail_task_with_error($task, (string) $reason);
                 continue;
             }
 
+            \core\cron::setup_user(\core_user::get_user($userid, '*', MUST_EXIST));
             try {
-                $result = self::submit_to_api(
-                    $task->modulename,
-                    $task->instructions,
-                    $courseid,
-                    section_resolver::get_number($courseid, (int) ($task->sectionid ?? 0))
-                );
-            } catch (\Throwable $e) {
-                self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
-                continue;
+                try {
+                    service_factory::get_file_sync_service()->ensure_enabled_and_synchronized($courseid, $userid);
+                } catch (\Throwable $e) {
+                    self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+                    continue;
+                }
+
+                try {
+                    $result = self::submit_to_api(
+                        $task->modulename,
+                        $task->instructions,
+                        $courseid,
+                        section_resolver::get_number($courseid, (int) ($task->sectionid ?? 0))
+                    );
+                } catch (\Throwable $e) {
+                    self::fail_task_with_error($task, exception_message::format_for_queue($e, 'generationfailed'));
+                    continue;
+                }
+            } finally {
+                \core\cron::setup_user();
             }
 
             $task->jobid = $result->jobid;
@@ -292,10 +302,9 @@ class queue_service {
      * when the course lock is held elsewhere, another job is already active, or nothing is pending.
      *
      * @param int $courseid The course ID.
-     * @param int $fallbackuserid User ID from the adhoc task when task params lack submittedby.
      * @return object|null The claimed task, already PROCESSING with an empty jobid, or null.
      */
-    private static function claim_next_pending(int $courseid, int $fallbackuserid): ?object {
+    private static function claim_next_pending(int $courseid): ?object {
         $lockfactory = \core\lock\lock_config::get_lock_factory('block_dixeo_modulegen');
         $lock = $lockfactory->get_lock('course_' . $courseid, self::CLAIM_LOCK_TIMEOUT);
         if (!$lock) {
@@ -313,7 +322,7 @@ class queue_service {
                     return null;
                 }
 
-                $rejection = self::pending_rejection_reason($task, $fallbackuserid);
+                $rejection = self::pending_rejection_reason($task);
                 if ($rejection !== null) {
                     self::fail_task_with_error($task, $rejection);
                     continue;
@@ -334,10 +343,9 @@ class queue_service {
      * Reason why a pending row cannot be submitted to the generate API, if any.
      *
      * @param object $task Queue row.
-     * @param int $fallbackuserid Fallback from adhoc custom data.
      * @return string|null Error message to store on the row, or null when the row is valid.
      */
-    private static function pending_rejection_reason(object $task, int $fallbackuserid): ?string {
+    private static function pending_rejection_reason(object $task): ?string {
         // Terminal log rows (fill / manual) must never run through the generate API.
         if (queue_task_mode::is_fill($task->params ?? null)) {
             return get_string('error_invalid_fill_pending', 'block_dixeo_modulegen');
@@ -345,7 +353,7 @@ class queue_service {
         if (queue_task_mode::is_manual($task->params ?? null)) {
             return get_string('error_invalid_manual_pending', 'block_dixeo_modulegen');
         }
-        if (self::resolve_submitter_userid($task, $fallbackuserid) <= 0) {
+        if (self::resolve_submitter_userid($task) <= 0) {
             return get_string('error_missing_submitter', 'block_dixeo_modulegen');
         }
         return null;
@@ -371,9 +379,7 @@ class queue_service {
      * @return array|null Task info with job_id if started, null if no pending tasks.
      */
     public static function start_next(int $courseid): ?array {
-        global $USER;
-        $userid = (int) ($USER->id ?? 0);
-        return self::process_next_pending($courseid, $userid);
+        return self::process_next_pending($courseid);
     }
 
     /**
@@ -434,28 +440,23 @@ class queue_service {
      * @return void
      */
     private static function schedule_queue_processing(int $courseid): void {
-        global $USER;
-        $userid = (int) ($USER->id ?? 0);
-        if ($userid > 0) {
-            queue_processor::schedule($courseid, $userid);
-        }
+        queue_processor::schedule($courseid);
     }
 
     /**
-     * Resolve the user ID to use for file sync on a pending task.
+     * User who queued a row, read from params.submittedby.
      *
      * @param object $task Queue row.
-     * @param int $fallbackuserid Fallback from adhoc custom data.
      * @return int User ID or 0 if unknown.
      */
-    private static function resolve_submitter_userid(object $task, int $fallbackuserid): int {
+    private static function resolve_submitter_userid(object $task): int {
         if (!empty($task->params)) {
             $params = json_decode($task->params, true);
             if (is_array($params) && !empty($params['submittedby'])) {
                 return (int) $params['submittedby'];
             }
         }
-        return $fallbackuserid;
+        return 0;
     }
 
     /**

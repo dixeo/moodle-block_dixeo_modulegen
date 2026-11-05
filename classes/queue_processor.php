@@ -31,30 +31,19 @@ class queue_processor {
     /**
      * Schedule background processing for a course queue.
      *
-     * Dedupes: only one adhoc task per course is queued at a time.
+     * One adhoc task is queued per course: a task with the same course is not queued twice.
+     * The task runs as the cron user and submits each row as the user who queued it.
      *
      * @param int $courseid The course ID.
-     * @param int $userid User initiating or continuing the queue (for file sync).
      * @return void
      */
-    public static function schedule(int $courseid, int $userid): void {
-        if ($courseid <= SITEID || $userid <= 0) {
+    public static function schedule(int $courseid): void {
+        if ($courseid <= SITEID) {
             return;
         }
 
-        $existingtasks = \core\task\manager::get_adhoc_tasks(task\process_modulegen_queue::class);
-        foreach ($existingtasks as $task) {
-            $data = $task->get_custom_data();
-            if (isset($data->courseid) && (int) $data->courseid === $courseid) {
-                return;
-            }
-        }
-
         $task = new task\process_modulegen_queue();
-        $task->set_custom_data((object) [
-            'courseid' => $courseid,
-            'userid' => $userid,
-        ]);
+        $task->set_custom_data((object) ['courseid' => $courseid]);
 
         \core\task\manager::queue_adhoc_task($task, true);
     }

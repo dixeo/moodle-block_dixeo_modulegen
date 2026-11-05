@@ -86,10 +86,9 @@ final class queue_processor_test extends advanced_testcase {
         $this->resetAfterTest(true);
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
-        $userid = (int) get_admin()->id;
 
-        queue_processor::schedule((int) $course->id, $userid);
-        queue_processor::schedule((int) $course->id, $userid);
+        queue_processor::schedule((int) $course->id);
+        queue_processor::schedule((int) $course->id);
 
         $count = 0;
         foreach (\core\task\manager::get_adhoc_tasks(process_modulegen_queue::class) as $task) {
@@ -132,7 +131,7 @@ final class queue_processor_test extends advanced_testcase {
         $record->params = json_encode(['submittedby' => $userid]);
         $queueid = queue_repository::insert($record);
 
-        $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
 
         $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
         $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
@@ -172,7 +171,7 @@ final class queue_processor_test extends advanced_testcase {
         $record->params = json_encode(['submittedby' => $userid]);
         $queueid = queue_repository::insert($record);
 
-        $started = queue_service::process_next_pending((int) $course->id, $userid);
+        $started = queue_service::process_next_pending((int) $course->id);
 
         $this->assertIsArray($started);
         $this->assertSame($queueid, $started['queueid']);
@@ -223,7 +222,7 @@ final class queue_processor_test extends advanced_testcase {
             });
         service_factory::set_test_module_generation_service($modulemock);
 
-        $started = queue_service::process_next_pending((int) $course->id, $userid);
+        $started = queue_service::process_next_pending((int) $course->id);
 
         // The row must already be claimed when the API is called, with no job id yet.
         $this->assertSame(queue_status::STATUS_PROCESSING, $observed['status']);
@@ -267,7 +266,7 @@ final class queue_processor_test extends advanced_testcase {
         $record->params = json_encode(['submittedby' => $userid]);
         $queueid = queue_repository::insert($record);
 
-        $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
 
         $row = $DB->get_record(queue_repository::TABLE, ['id' => $queueid], '*', MUST_EXIST);
         $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
@@ -308,7 +307,7 @@ final class queue_processor_test extends advanced_testcase {
         $this->assertNotFalse($lock);
 
         try {
-            $this->assertNull(queue_service::process_next_pending((int) $course->id, $userid));
+            $this->assertNull(queue_service::process_next_pending((int) $course->id));
         } finally {
             $lock->release();
         }
@@ -353,6 +352,115 @@ final class queue_processor_test extends advanced_testcase {
         $syncmock->expects($this->never())->method('ensure_enabled_and_synchronized');
         service_factory::set_test_file_sync_service($syncmock);
 
-        $this->assertNull(queue_service::process_next_pending((int) $course->id, (int) get_admin()->id));
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
+    }
+
+    public function test_job_is_submitted_as_the_teacher_who_queued_it(): void {
+        global $DB, $USER;
+
+        $this->resetAfterTest(true);
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $queueid = $this->insert_pending((int) $course->id, (int) $teacher->id);
+        $this->setAdminUser();
+
+        $syncmock = $this->createMock(file_sync_service::class);
+        $syncmock->expects($this->once())
+            ->method('ensure_enabled_and_synchronized')
+            ->willReturnCallback(function () use ($teacher): void {
+                global $USER;
+                $this->assertSame((int) $teacher->id, (int) $USER->id);
+            });
+        service_factory::set_test_file_sync_service($syncmock);
+
+        $jobid = \core\uuid::generate();
+        $client = $this->createMock(\local_dixeo\api\client::class);
+        $client->expects($this->once())->method('post')->willReturn(['id' => $jobid]);
+        service_factory::set_test_module_generation_service(
+            new module_generation_service(new \local_dixeo\service\job_service($client), 'default')
+        );
+
+        $started = queue_service::process_next_pending((int) $course->id);
+
+        $this->assertSame($queueid, $started['queueid']);
+        $this->assertSame(
+            (int) $teacher->id,
+            (int) $DB->get_field(\local_dixeo\repository\job_repository::TABLE, 'userid', ['jobid' => $jobid], MUST_EXIST)
+        );
+        $this->assertSame((int) get_admin()->id, (int) $USER->id);
+    }
+
+    public function test_row_of_a_teacher_who_lost_generate_is_failed_without_sending(): void {
+        global $DB;
+
+        $this->resetAfterTest(true);
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $queueid = $this->insert_pending((int) $course->id, (int) $teacher->id);
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        assign_capability('local/dixeo:generate', CAP_PROHIBIT, $roleid, \context_course::instance($course->id)->id, true);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->setAdminUser();
+        $this->expect_nothing_sent();
+
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
+
+        $this->assert_failed_with($queueid, get_string('error:generation_not_allowed', 'local_dixeo'));
+    }
+
+    public function test_row_is_failed_without_sending_when_dixeo_is_off(): void {
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $queueid = $this->insert_pending((int) $course->id, (int) get_admin()->id);
+        service_factory::get_settings_config()->set('local_dixeo', 'enabled', \context_course::instance($course->id), '0');
+        $this->expect_nothing_sent();
+
+        $this->assertNull(queue_service::process_next_pending((int) $course->id));
+
+        $this->assert_failed_with($queueid, get_string('error:dixeo_disabled', 'local_dixeo'));
+    }
+
+    /**
+     * Insert a pending generate row queued by a user.
+     *
+     * @param int $courseid Course id.
+     * @param int $userid Submitter.
+     * @return int Queue row id.
+     */
+    private function insert_pending(int $courseid, int $userid): int {
+        $record = queue_repository::create_base_record($courseid, 'page', 'Instructions', null, null, 'en');
+        $record->status = queue_status::STATUS_PENDING;
+        $record->params = json_encode(['submittedby' => $userid]);
+        return queue_repository::insert($record);
+    }
+
+    /**
+     * Fail the test when the processor syncs or submits.
+     *
+     * @return void
+     */
+    private function expect_nothing_sent(): void {
+        $syncmock = $this->createMock(file_sync_service::class);
+        $syncmock->expects($this->never())->method('ensure_enabled_and_synchronized');
+        service_factory::set_test_file_sync_service($syncmock);
+
+        $modulemock = $this->createMock(module_generation_service::class);
+        $modulemock->method('set_component')->willReturnSelf();
+        $modulemock->expects($this->never())->method('submit_generate_job_for_course');
+        service_factory::set_test_module_generation_service($modulemock);
+    }
+
+    /**
+     * Assert a queue row failed with the given stored message.
+     *
+     * @param int $queueid Queue row id.
+     * @param string $error Expected params.error.
+     * @return void
+     */
+    private function assert_failed_with(int $queueid, string $error): void {
+        $row = queue_repository::get_by_id($queueid);
+        $this->assertSame(queue_status::STATUS_FAILED, (int) $row->status);
+        $this->assertSame($error, json_decode($row->params, true)['error'] ?? '');
     }
 }

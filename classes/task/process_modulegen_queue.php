@@ -52,12 +52,12 @@ class process_modulegen_queue extends \core\task\adhoc_task {
             return;
         }
 
+        // Rows are submitted as the user who queued them; a userid in the custom data is ignored.
         $courseid = (int) $data->courseid;
-        $userid = isset($data->userid) ? (int) $data->userid : 0;
 
         mtrace("process_modulegen_queue: Processing queue for course {$courseid}");
 
-        $result = queue_service::process_next_pending($courseid, $userid);
+        $result = queue_service::process_next_pending($courseid);
 
         if ($result === null) {
             mtrace("process_modulegen_queue: No pending task started for course {$courseid}");
