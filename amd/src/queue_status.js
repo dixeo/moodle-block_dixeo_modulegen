@@ -26,9 +26,10 @@ define([
     'core/str',
     'core/templates',
     'core/notification',
-    'core/ajax',
-    'block_dixeo_modulegen/job_manager'
-], function($, Str, Templates, Notification, Ajax, JobManager) {
+    'block_dixeo_modulegen/job_manager',
+    'local_dixeo/network',
+    'block_dixeo_modulegen/connection'
+], function($, Str, Templates, Notification, JobManager, Network, Connection) {
     'use strict';
 
     return {
@@ -315,10 +316,14 @@ define([
             this.showQueueLoading();
             await this.animateQueuePanelIn();
 
-            this.updateQueueList().catch(async(error) => {
+            this.updateQueueList().catch(async(failure) => {
                 this.hideQueueLoading();
+                if (Network.isConnectionError(failure)) {
+                    // Already reported by updateQueueList.
+                    return;
+                }
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
-                Notification.alert(errorTitle, error.message || String(error));
+                Notification.alert(errorTitle, failure.message || String(failure));
             });
         },
 
@@ -451,7 +456,7 @@ define([
             // Use provided data or fetch via JobManager (centralized, cached).
             const dataPromise = data
                 ? Promise.resolve(data)
-                : JobManager.getQueueStatus(true);
+                : Network.retryRead(() => JobManager.getQueueStatus(true));
 
             return dataPromise.then(async(data) => {
                 const context = {tasks: []};
@@ -532,10 +537,14 @@ define([
                 this.addActionListeners();
                 return undefined;
 
-            }).catch(async(error) => {
+            }).catch(async(failure) => {
+                if (Network.isConnectionError(failure)) {
+                    Connection.notifyConnection();
+                    throw failure;
+                }
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
-                Notification.alert(errorTitle, error.message || String(error));
-                throw error;
+                Notification.alert(errorTitle, failure.message || String(failure));
+                throw failure;
             });
         },
 
@@ -736,13 +745,14 @@ define([
             link.style.pointerEvents = 'none';
             Str.get_string('processing', 'block_dixeo_modulegen').then((processingLabel) => {
                 link.textContent = processingLabel + '…';
-                return Ajax.call([{
+                // The handler waits for the remote fill job inside the request: sent once, no client timeout.
+                return Network.call({
                     methodname: 'block_dixeo_modulegen_retry_fill_task',
                     args: {
                         queueid: queueId,
                         courseid: courseId
                     }
-                }])[0];
+                }, {timeout: Network.TIMEOUT_NONE});
             }).then(async(data) => {
                 link.style.pointerEvents = '';
                 link.textContent = originalText;
@@ -758,7 +768,7 @@ define([
             }).catch((error) => {
                 link.style.pointerEvents = '';
                 link.textContent = originalText;
-                Notification.exception(error);
+                Connection.exception(error);
                 return undefined;
             });
         },
@@ -925,7 +935,7 @@ define([
                 this.updateQueueStatistics();
                 this.updateQueueList();
             } catch (error) {
-                Notification.exception(error);
+                Connection.exception(error);
                 button.innerHTML = originalIcon;
                 button.disabled = false;
                 if (taskItem) {
@@ -947,12 +957,16 @@ define([
             }
 
             // Fetch via JobManager (single source of truth). Initial load uses false to avoid duplicate XHR.
-            JobManager.getQueueStatus(forceRefresh).then((data) => {
+            Network.retryRead(() => JobManager.getQueueStatus(forceRefresh)).then((data) => {
                 this.renderQueueStatistics(data);
                 return undefined;
-            }).catch(async(error) => {
+            }).catch(async(failure) => {
+                if (Network.isConnectionError(failure)) {
+                    Connection.notifyConnection();
+                    return undefined;
+                }
                 const errorTitle = await Str.get_string('error_title', 'block_dixeo_modulegen');
-                Notification.alert(errorTitle, error.message || String(error));
+                Notification.alert(errorTitle, failure.message || String(failure));
                 return undefined;
             });
         },

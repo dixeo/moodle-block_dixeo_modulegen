@@ -7,7 +7,12 @@
  * @copyright  2026 Edunao SAS (contact@edunao.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-define(['core_courseformat/courseeditor', 'core/fragment', 'core/templates'], function(CourseEditor, Fragment, Templates) {
+define([
+    'core_courseformat/courseeditor',
+    'core/fragment',
+    'core/templates',
+    'local_dixeo/network',
+], function(CourseEditor, Fragment, Templates, Network) {
     'use strict';
 
     /** Activities indexed by the course editor but missing native draggable after a partial refresh. */
@@ -86,22 +91,26 @@ define(['core_courseformat/courseeditor', 'core/fragment', 'core/templates'], fu
             return false;
         }
 
-        Fragment.loadFragment('format_tiles', 'get_cm_list', contextId, {sectionid: sectionId})
-            .done(function(html, js) {
-                if (!html) {
-                    return;
-                }
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = html;
-                const rendered = wrapper.firstElementChild;
-                contentArea.innerHTML = rendered ? rendered.innerHTML : html;
-                if (js) {
-                    Templates.runTemplateJS(js);
-                }
-            })
-            .fail(function() {
-                // The activity is stored; the section list can be opened again.
-            });
+        const load = () => new Promise((resolve, reject) => {
+            Fragment.loadFragment('format_tiles', 'get_cm_list', contextId, {sectionid: sectionId})
+                .done((html, js) => resolve({html, js}))
+                .fail(reject);
+        });
+        Network.retryRead(load).then(({html, js}) => {
+            if (!html) {
+                return undefined;
+            }
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            const rendered = wrapper.firstElementChild;
+            contentArea.innerHTML = rendered ? rendered.innerHTML : html;
+            if (js) {
+                Templates.runTemplateJS(js);
+            }
+            return undefined;
+        }).catch(() => {
+            // The activity is stored; the section list can be opened again.
+        });
         return true;
     };
 

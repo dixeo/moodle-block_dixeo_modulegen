@@ -24,8 +24,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 define([
-    'core/ajax'
-], function(Ajax) {
+    'local_dixeo/network',
+    'block_dixeo_modulegen/connection'
+], function(Network, Connection) {
     'use strict';
 
     /** @var {number} Initial delay before first job poll (AI generation takes time). */
@@ -41,6 +42,12 @@ define([
     const MAX_POLL_ATTEMPTS = 120;
 
     /**
+     * @var {number} Minimum delay between module creation calls after one was lost on the network.
+     * Longer than the server's 60 s creation lock wait, so a busy reply arrives before the next call.
+     */
+    const CREATE_RECHECK_MS = 90000;
+
+    /**
      * Job state object structure.
      * @typedef {Object} JobState
      * @property {string|null} jobId - The Dixeo job UUID (null if queued).
@@ -48,6 +55,10 @@ define([
      * @property {number} attempts - Number of polling attempts.
      * @property {Object} args - Original submission arguments.
      * @property {number|null} timeoutId - Active setTimeout ID for polling.
+     * @property {Object|undefined} retryWindow - Connection failures of this job's polling.
+     * @property {number|null|undefined} createLost - Time a module creation call was lost on the network.
+     * @property {number|undefined} lastCreateAt - Time of the last module creation call.
+     * @property {Object|undefined} createStall - Watches the queue row after a lost creation call.
      */
 
     /** @var {Map<number, JobState>} activeJobs - Map of queueId to job state. */
@@ -76,6 +87,36 @@ define([
 
     /** @var {boolean} visibilityListenerAttached - Whether the visibility change listener is attached. */
     let visibilityListenerAttached = false;
+
+    /** @var {Object} queueRetryWindow - Connection failures of the queue polling. */
+    const queueRetryWindow = Network.createRetryWindow();
+
+    /** @var {boolean} connectionNoticeShown - Whether the connection message was shown on this page. */
+    let connectionNoticeShown = false;
+
+    /**
+     * Show the connection message once per page, however many jobs lost their polling.
+     */
+    const notifyConnectionOnce = () => {
+        if (connectionNoticeShown) {
+            return;
+        }
+        connectionNoticeShown = true;
+        Connection.notifyConnection();
+    };
+
+    /**
+     * The retry window of a job's polling, created on first use.
+     *
+     * @param {Object} job
+     * @returns {Object}
+     */
+    const jobRetryWindow = (job) => {
+        if (!job.retryWindow) {
+            job.retryWindow = Network.createRetryWindow();
+        }
+        return job.retryWindow;
+    };
 
     /**
      * Handle visibility change events.
@@ -225,7 +266,7 @@ define([
             return Promise.resolve();
         }
 
-        return Ajax.call([{
+        return Network.call({
             methodname: 'block_dixeo_modulegen_update_task',
             args: {
                 queueid: queueId,
@@ -234,8 +275,12 @@ define([
                 error: errorMsg || '',
                 jobid: jobId || ''
             }
-        }])[0].catch(() => {
-            // Silently ignore - primary operation already handled.
+        }, {timeout: Network.TIMEOUT_ACTION_MS}).catch((failure) => {
+            // A cancel the user asked for reports a lost connection; anything else is silent.
+            if (action === 'cancel' && Network.isConnectionError(failure)) {
+                throw failure;
+            }
+            return undefined;
         });
     };
 
@@ -250,10 +295,10 @@ define([
             return Promise.reject(new Error('Queue ID required'));
         }
         activeJobs.delete(queueId);
-        return Ajax.call([{
+        return Network.call({
             methodname: 'block_dixeo_modulegen_delete_task',
             args: {queueid: queueId}
-        }])[0].then((result) => {
+        }, {timeout: Network.TIMEOUT_ACTION_MS}).then((result) => {
             if (!result.success) {
                 const message = result.message || 'Failed to remove task';
                 throw new Error(message);
@@ -270,14 +315,17 @@ define([
      * the row complete/failed itself. Concurrent callers (other tabs, pages)
      * get the already-created cmid back instead of creating a duplicate.
      *
+     * The call is never resent automatically: a lost call is followed through the queue row
+     * (see followLostCreate).
+     *
      * @param {number} queueId - The queue record ID.
      * @returns {Promise<{cmid: number, sectionid: number, sectionnumber: number}>} Created module and placement.
      */
     const createModuleFromJob = (queueId) => {
-        return Ajax.call([{
+        return Network.call({
             methodname: 'block_dixeo_modulegen_create_module_for_task',
             args: {queueid: queueId}
-        }])[0].then((result) => {
+        }, {timeout: Network.TIMEOUT_ACTION_MS}).then((result) => {
             if (!result.success) {
                 const error = new Error(result.message || 'Failed to create module');
                 error.retry = !!result.retry;
@@ -292,13 +340,209 @@ define([
     };
 
     /**
+     * Schedule the next poll of a job.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     */
+    const scheduleJobPoll = (queueId, job) => {
+        job.timeoutId = setTimeout(() => pollJobStatus(queueId), JOB_POLL_INTERVAL_MS);
+    };
+
+    /**
+     * Stop polling a job after a lasting connection loss, without failing it.
+     *
+     * The server job keeps running and the queue resumes it on the next page load.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     */
+    const stopWithoutFailing = (queueId, job) => {
+        if (job.timeoutId) {
+            clearTimeout(job.timeoutId);
+            job.timeoutId = null;
+        }
+        activeJobs.delete(queueId);
+        notifyConnectionOnce();
+    };
+
+    /**
+     * Report a module created for a job and stop tracking it.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     * @param {{cmid: number, sectionid: number, sectionnumber: number}} result
+     */
+    const completeJob = (queueId, job, result) => {
+        job.status = 'completed';
+        job.createLost = null;
+        dispatchCompletionEvent(queueId, job, result.cmid, result.sectionid, result.sectionnumber);
+        activeJobs.delete(queueId);
+    };
+
+    /**
+     * Report a job whose module could not be created and stop tracking it.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     * @param {string} message
+     */
+    const failCreate = (queueId, job, message) => {
+        job.status = 'failed';
+        job.createLost = null;
+        dispatchFailureEvent(queueId, job, message);
+        activeJobs.delete(queueId);
+    };
+
+    /**
+     * Ask the server to create the module of a completed job.
+     *
+     * After a creation call is lost on the network, the job enters the lost-create state: its
+     * queue row is read on each tick instead of the job status, and a reply without success
+     * and without retry is not final, because it is the busy reply of the creation lock while
+     * the first call is still creating the module.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     * @returns {Promise<void>}
+     */
+    const runCreate = async(queueId, job) => {
+        job.status = 'creating';
+        job.lastCreateAt = Date.now();
+        try {
+            const result = await createModuleFromJob(queueId);
+            if (activeJobs.has(queueId)) {
+                completeJob(queueId, job, result);
+            }
+        } catch (error) {
+            if (!activeJobs.has(queueId)) {
+                return;
+            }
+            if (Network.isConnectionError(error)) {
+                if (!job.createLost) {
+                    job.createLost = Date.now();
+                    job.createStall = Network.createStallWatch({
+                        startMs: Network.STALL_PROGRESS_MS,
+                        stallMs: Network.STALL_PROGRESS_MS,
+                    });
+                }
+                job.status = 'processing';
+                if (!jobRetryWindow(job).shouldRetry(error)) {
+                    stopWithoutFailing(queueId, job);
+                    return;
+                }
+                scheduleJobPoll(queueId, job);
+                return;
+            }
+            if (error.retry || (job.createLost && !error.errorcode)) {
+                // The server could not read the job yet, or the lost call is still creating
+                // the module: read again on the next tick.
+                job.status = 'processing';
+                scheduleJobPoll(queueId, job);
+                return;
+            }
+            failCreate(queueId, job, error.message);
+        }
+    };
+
+    /**
+     * Read the queue row of a job whose module creation call was lost, and act on it.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     * @returns {Promise<void>}
+     */
+    const readLostCreate = async(queueId, job) => {
+        let data;
+        try {
+            data = await fetchQueueStatus(true);
+        } catch (error) {
+            if (!activeJobs.has(queueId)) {
+                return;
+            }
+            const keepReading = Network.isConnectionError(error)
+                ? jobRetryWindow(job).shouldRetry(error)
+                : true;
+            if (!keepReading || job.createStall.stalled()) {
+                stopWithoutFailing(queueId, job);
+                return;
+            }
+            scheduleJobPoll(queueId, job);
+            return;
+        }
+        if (!activeJobs.has(queueId)) {
+            return;
+        }
+        jobRetryWindow(job).succeeded();
+
+        const task = Array.isArray(data.tasks) ? data.tasks.find((t) => t.id === queueId) : null;
+        if (!task) {
+            // Task not found - may have been deleted.
+            job.createLost = null;
+            activeJobs.delete(queueId);
+            return;
+        }
+        const status = parseInt(task.status, 10);
+        job.createStall.observe(String(status), true);
+
+        // STATUS_COMPLETED = 2: a confirming call returns the created module and its placement.
+        if (status === 2 && task.cmid) {
+            await runCreate(queueId, job);
+            return;
+        }
+        // STATUS_FAILED = 3, STATUS_CANCELLED = 4
+        if (status === 3 || status === 4) {
+            failCreate(queueId, job, status === 4 ? 'Task was cancelled' : (task.statuslabel || 'Task failed'));
+            return;
+        }
+        if (job.createStall.stalled()) {
+            stopWithoutFailing(queueId, job);
+            return;
+        }
+        // STATUS_PROCESSING = 1: a fresh creation call is idempotent on the server.
+        if (status === 1 && Date.now() - (job.lastCreateAt || 0) >= CREATE_RECHECK_MS) {
+            await runCreate(queueId, job);
+            return;
+        }
+        scheduleJobPoll(queueId, job);
+    };
+
+    /**
+     * Follow a job whose module creation call was lost, through its queue row.
+     * Only one read runs at a time for a job.
+     *
+     * @param {number} queueId
+     * @param {Object} job
+     * @returns {Promise<void>}
+     */
+    const followLostCreate = async(queueId, job) => {
+        if (job.lostReadPending) {
+            return;
+        }
+        job.lostReadPending = true;
+        try {
+            await readLostCreate(queueId, job);
+        } finally {
+            job.lostReadPending = false;
+        }
+    };
+
+    /**
      * Poll job status until completion.
+     *
+     * Connection failures are retried within the job's retry window and do not count as
+     * polling attempts. Past the window, polling of the job stops without failing it.
      *
      * @param {number} queueId - The queue record ID.
      */
     const pollJobStatus = async(queueId) => {
         const job = activeJobs.get(queueId);
         if (!job || !job.jobId) {
+            return;
+        }
+
+        if (job.createLost) {
+            await followLostCreate(queueId, job);
             return;
         }
 
@@ -312,63 +556,62 @@ define([
             return;
         }
 
+        let status;
         try {
-            const status = await Ajax.call([{
+            status = await Network.call({
                 methodname: 'local_dixeo_get_job_status',
                 args: {
                     jobid: job.jobId,
                     courseid: job.args.courseid || courseId,
                 }
-            }])[0];
-
-            // Job may have been cancelled while polling.
+            }, {timeout: Network.TIMEOUT_STATUS_MS});
+        } catch (error) {
             if (!activeJobs.has(queueId)) {
                 return;
             }
-
-            if (status.status === 'completed') {
-                // Guard against overlapping polls in this tab (e.g. a visibility
-                // re-poll firing while a create request is already in flight).
-                if (job.status === 'creating') {
+            if (Network.isConnectionError(error)) {
+                job.attempts--;
+                if (jobRetryWindow(job).shouldRetry(error)) {
+                    scheduleJobPoll(queueId, job);
                     return;
                 }
-                job.status = 'creating';
-                try {
-                    const result = await createModuleFromJob(queueId);
-                    job.status = 'completed';
-                    dispatchCompletionEvent(queueId, job, result.cmid, result.sectionid, result.sectionnumber);
-                    activeJobs.delete(queueId);
-                } catch (error) {
-                    if (error.retry) {
-                        // The server could not read the job yet: ask again on the next poll.
-                        job.status = 'processing';
-                        job.timeoutId = setTimeout(() => pollJobStatus(queueId), JOB_POLL_INTERVAL_MS);
-                        return;
-                    }
-                    job.status = 'failed';
-                    dispatchFailureEvent(queueId, job, error.message);
-                    activeJobs.delete(queueId);
-                }
+                stopWithoutFailing(queueId, job);
                 return;
             }
-
-            if (status.status === 'failed') {
-                const errorMsg = status.error?.detail || 'Generation failed';
-                job.status = 'failed';
-                updateTask(queueId, 'fail', 0, errorMsg, job.jobId);
-                dispatchFailureEvent(queueId, job, errorMsg);
-                activeJobs.delete(queueId);
-                return;
-            }
-
-            // Still processing - schedule next poll.
-            job.timeoutId = setTimeout(() => pollJobStatus(queueId), JOB_POLL_INTERVAL_MS);
-        } catch (error) {
             job.status = 'failed';
             updateTask(queueId, 'fail', 0, error.message || 'Polling error', job.jobId);
             dispatchFailureEvent(queueId, job, error.message || 'Polling error');
             activeJobs.delete(queueId);
+            return;
         }
+
+        // Job may have been cancelled while polling.
+        if (!activeJobs.has(queueId)) {
+            return;
+        }
+        jobRetryWindow(job).succeeded();
+
+        if (status.status === 'completed') {
+            // Guard against overlapping polls in this tab (e.g. a visibility
+            // re-poll firing while a create request is already in flight).
+            if (job.status === 'creating') {
+                return;
+            }
+            await runCreate(queueId, job);
+            return;
+        }
+
+        if (status.status === 'failed') {
+            const errorMsg = status.error?.detail || 'Generation failed';
+            job.status = 'failed';
+            updateTask(queueId, 'fail', 0, errorMsg, job.jobId);
+            dispatchFailureEvent(queueId, job, errorMsg);
+            activeJobs.delete(queueId);
+            return;
+        }
+
+        // Still processing - schedule next poll.
+        scheduleJobPoll(queueId, job);
     };
 
     /**
@@ -412,10 +655,10 @@ define([
         }
 
         // Make new request.
-        pendingQueueFetch = Ajax.call([{
+        pendingQueueFetch = Network.call({
             methodname: 'block_dixeo_modulegen_get_queue_status',
             args: {courseid: courseId}
-        }])[0].then((data) => {
+        }, {timeout: Network.TIMEOUT_STATUS_MS}).then((data) => {
             lastQueueData = data;
             lastQueueFetchTime = Date.now();
             pendingQueueFetch = null;
@@ -435,6 +678,9 @@ define([
     /**
      * Poll queue status to track job progression.
      * This handles jobs transitioning from queued to processing.
+     *
+     * Connection failures are retried within the retry window; past it, polling stops and the
+     * connection message is shown once.
      */
     const pollQueueStatus = () => {
         if (!courseId) {
@@ -455,6 +701,7 @@ define([
         }
 
         fetchQueueStatus(true).then((data) => {
+            queueRetryWindow.succeeded();
             if (!data.tasks || !Array.isArray(data.tasks)) {
                 return undefined;
             }
@@ -516,7 +763,12 @@ define([
             }
 
             return undefined;
-        }).catch(() => {
+        }).catch((failure) => {
+            if (Network.isConnectionError(failure) && !queueRetryWindow.shouldRetry(failure)) {
+                queuePollTimeoutId = null;
+                notifyConnectionOnce();
+                return undefined;
+            }
             // Retry on error.
             queuePollTimeoutId = setTimeout(pollQueueStatus, QUEUE_POLL_INTERVAL_MS);
             return undefined;
@@ -608,7 +860,7 @@ define([
          *
          * Must be called before using any other methods.
          * Fetches current queue state and resumes polling for active jobs.
-         * Retries up to 3 times on failure.
+         * The read is retried through short connection losses.
          *
          * @param {number} cid - The course ID.
          * @returns {Promise} Resolves when initialization is complete.
@@ -620,40 +872,25 @@ define([
 
             courseId = cid;
 
-            const maxRetries = 3;
-            const retryDelay = 2000;
-
             // Attach visibility change listener to handle browser tab suspension.
             if (!visibilityListenerAttached) {
                 document.addEventListener('visibilitychange', handleVisibilityChange);
                 visibilityListenerAttached = true;
             }
 
-            const attemptInit = (attempt) => {
-                return fetchQueueStatus(true).then((data) => {
-                    initialized = true;
-                    if (data.tasks) {
-                        resumeProcessingJobs(data.tasks);
-                    }
-                    return undefined;
-                }).catch((error) => {
-                    if (attempt < maxRetries) {
-                        // Retry after delay.
-                        return new Promise((resolve) => {
-                            setTimeout(() => {
-                                resolve(attemptInit(attempt + 1));
-                            }, retryDelay);
-                        });
-                    }
-                    // Max retries reached - mark as initialized anyway so new jobs work.
-                    initialized = true;
-                    // eslint-disable-next-line no-console
-                    console.warn('JobManager init failed after retries:', error);
-                    return undefined;
-                });
-            };
-
-            return attemptInit(1);
+            return Network.retryRead(() => fetchQueueStatus(true)).then((data) => {
+                initialized = true;
+                if (data.tasks) {
+                    resumeProcessingJobs(data.tasks);
+                }
+                return undefined;
+            }).catch((error) => {
+                // Mark as initialized anyway so new jobs work.
+                initialized = true;
+                // eslint-disable-next-line no-console
+                console.warn('JobManager init failed after retries:', error);
+                return undefined;
+            });
         },
 
         /**
@@ -671,6 +908,15 @@ define([
         },
 
         /**
+         * Start following the processing and queued tasks of a queue read that are not tracked yet.
+         *
+         * @param {Array} tasks - Array of task objects from get_queue_status API.
+         */
+        resumeJobs: function(tasks) {
+            resumeProcessingJobs(tasks);
+        },
+
+        /**
          * Submit a new job for module generation.
          *
          * @param {Object} args - Submission arguments.
@@ -679,13 +925,15 @@ define([
          * @param {string} args.instructions - User instructions for generation.
          * @param {number} args.sectionid - Target course section id.
          * @param {number} args.beforemod - Module ID to insert before (0 for end).
-         * @returns {Promise<{queueId: number, status: string}>} Resolves with queue info.
+         * @returns {Promise<{queueId: number, status: string}>} Resolves with queue info. Rejects with a
+         *     connection error when the answer was lost: the job may have been queued anyway.
          */
         submitJob: function(args) {
-            return Ajax.call([{
+            // A paid start: sent once.
+            return Network.call({
                 methodname: 'block_dixeo_modulegen_submit_generation',
                 args: args
-            }])[0].then((data) => {
+            }, {timeout: Network.TIMEOUT_ACTION_MS}).then((data) => {
                 if (!data.success) {
                     const message = data.error?.message || 'Failed to submit generation';
                     throw new Error(message);

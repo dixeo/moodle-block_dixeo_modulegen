@@ -10,8 +10,10 @@ define([
     'core/str',
     'block_dixeo_modulegen/course_section_refresh',
     'block_dixeo_modulegen/job_manager',
-    'block_dixeo_modulegen/generation_notifications'
-], function($, Str, CourseSectionRefresh, JobManager, GenerationNotifications) {
+    'block_dixeo_modulegen/generation_notifications',
+    'local_dixeo/network',
+    'block_dixeo_modulegen/connection'
+], function($, Str, CourseSectionRefresh, JobManager, GenerationNotifications, Network, Connection) {
     'use strict';
 
     /** @type {Object|null} Config from PHP init (upload URL, sesskey, description params). */
@@ -549,12 +551,13 @@ define([
                 }
             };
 
+            // The upload creates an activity: sent once.
             let uploadResponse;
-            fetch(uploadConfig.uploadUrl, {
+            Network.fetchWithTimeout(uploadConfig.uploadUrl, {
                 method: 'POST',
                 body: formData,
                 credentials: 'same-origin',
-            })
+            }, Network.TIMEOUT_ACTION_MS)
                 .then((response) => {
                     uploadResponse = response;
                     return response.json();
@@ -592,9 +595,17 @@ define([
                 })
                 .catch((error) => {
                     restoreUi();
-                    showModalError(form, error.message || String(error));
+                    return Network.isConnectionError(error)
+                        ? Connection.connectionMessage()
+                        : (error.message || String(error));
+                })
+                .then((errorText) => {
+                    if (errorText) {
+                        showModalError(form, errorText);
+                    }
                     return undefined;
-                });
+                })
+                .catch(() => undefined);
         },
     };
 });

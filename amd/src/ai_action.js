@@ -20,8 +20,10 @@ define([
     'core/str',
     'core/local/aria/focuslock',
     'block_dixeo_modulegen/job_manager',
-    'block_dixeo_modulegen/course_section_refresh'
-], function($, Notification, Str, FocusLock, JobManager, CourseSectionRefresh) {
+    'block_dixeo_modulegen/course_section_refresh',
+    'local_dixeo/network',
+    'block_dixeo_modulegen/connection'
+], function($, Notification, Str, FocusLock, JobManager, CourseSectionRefresh, Network, Connection) {
     'use strict';
 
     let isModalClosingDisabled = false;
@@ -228,6 +230,22 @@ define([
         },
 
         /**
+         * Report a submission whose answer was lost and look for the job in the queue.
+         *
+         * The submission is never sent again: a job that reached the server shows up in the
+         * queue and is followed from there.
+         *
+         * @returns {Promise}
+         */
+        handleLostSubmission: function() {
+            Network.retryRead(() => JobManager.getQueueStatus(true)).then((data) => {
+                JobManager.resumeJobs(data && data.tasks);
+                return undefined;
+            }).catch(() => undefined);
+            return Connection.alertString('error_connection_submitted');
+        },
+
+        /**
          * Handle form submission for module generation.
          *
          * @param {Event} event - The submit event.
@@ -277,6 +295,9 @@ define([
                     })
                     .catch((error) => {
                         this.resetFormState(form, closeButton, generateButton, instructionsTextarea, false);
+                        if (Network.isConnectionError(error)) {
+                            return this.handleLostSubmission();
+                        }
                         return this.showGenerationError(error);
                     });
             };
@@ -293,6 +314,9 @@ define([
                     })
                     .catch((error) => {
                         this.resetFormState(form, closeButton, generateButton, instructionsTextarea, false);
+                        if (Network.isConnectionError(error)) {
+                            return Connection.notifyConnection();
+                        }
                         return this.showGenerationError(error);
                     });
             } else {

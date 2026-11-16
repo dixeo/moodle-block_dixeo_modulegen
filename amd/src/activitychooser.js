@@ -16,14 +16,14 @@
 
 define([
     'core/templates',
-    'core/ajax',
     'core/str',
     'block_dixeo_modulegen/job_manager',
     'block_dixeo_modulegen/queue_status',
     'block_dixeo_modulegen/ai_action',
     'block_dixeo_modulegen/manual_upload_action',
-    'block_dixeo_modulegen/generation_notifications'
-], function(Templates, Ajax, Str, JobManager, QueueStatus, AiAction, ManualUploadAction, GenerationNotifications) {
+    'block_dixeo_modulegen/generation_notifications',
+    'local_dixeo/network'
+], function(Templates, Str, JobManager, QueueStatus, AiAction, ManualUploadAction, GenerationNotifications, Network) {
     'use strict';
 
     let initialized = false;
@@ -240,10 +240,10 @@ define([
             Str.get_string('category_resource', 'block_dixeo_modulegen'),
             Str.get_string('category_interactive', 'block_dixeo_modulegen'),
             Str.get_string('category_assessment', 'block_dixeo_modulegen'),
-            Ajax.call([{
+            Network.retryRead(() => Network.call({
                 methodname: 'local_dixeo_get_module_types',
                 args: {courseid: courseId}
-            }])[0]
+            }, {timeout: Network.TIMEOUT_STATUS_MS}))
         ]);
 
         const categoryStrings = {
