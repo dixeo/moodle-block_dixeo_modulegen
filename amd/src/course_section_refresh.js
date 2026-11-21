@@ -91,11 +91,12 @@ define([
             return false;
         }
 
-        const load = () => new Promise((resolve, reject) => {
+        // Settled through the network module so that a lost connection is retried.
+        const load = () => Network.settle(new Promise((resolve, reject) => {
             Fragment.loadFragment('format_tiles', 'get_cm_list', contextId, {sectionid: sectionId})
                 .done((html, js) => resolve({html, js}))
                 .fail(reject);
-        });
+        }));
         Network.retryRead(load).then(({html, js}) => {
             if (!html) {
                 return undefined;

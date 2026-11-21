@@ -32,5 +32,5 @@ $plugin->component = 'block_dixeo_modulegen';
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '3.3.1';
 $plugin->dependencies = [
-    'local_dixeo' => 2026111600,
+    'local_dixeo' => 2026112000,
 ];
